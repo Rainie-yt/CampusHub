@@ -1,9 +1,9 @@
-#pragma once
+ï»¿#pragma once
 #include"club.h"
 class ArtClub :public Club
 {
 private:
-	string artCategory;//ÒÕÊõÀà±ğ
+	string artCategory;//è‰ºæœ¯ç±»åˆ«
 public:
 	ArtClub(const string& id, const string& name, const string& intro, const string& leader, const string& category);
 	string getArtCategory()const;

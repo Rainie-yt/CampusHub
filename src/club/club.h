@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include  <string>
 #include<vector>
 using namespace std;
@@ -9,49 +9,49 @@ private:
 	string clubName;
 	string description;
 	string leaderId;
-	string status;//ÉóºË×´Ì¬£ºpending¡¢approved¡¢rejected
-	vector<string>memberIds;//ÉçÍÅ³ÉÔ±µÄÓÃ»§±àºÅ
+	string status;//å®¡æ ¸çŠ¶æ€ï¼špendingã€approvedã€rejected
+	vector<string>memberIds;//ç¤¾å›¢æˆå‘˜çš„ç”¨æˆ·ç¼–å·
 public:
-	//¹¹Ôìº¯Êı
+	//æ„é€ å‡½æ•°
 	Club(const string& id, const string& name, const string& intro, const string& leader);
-	//»ñÈ¡»ù±¾×ÊÁÏ£¬²»ĞŞ¸Ä¶ÔÏó
+	//è·å–åŸºæœ¬èµ„æ–™ï¼Œä¸ä¿®æ”¹å¯¹è±¡
 	string getClubId()const;
 	string getClubName()const;
 	string getDescription()const;
 	string getLeaderId()const;
 	string getStatus()const;
-	//ĞŞ¸ÄÃû³Æ,¾Ü¾ø¿ÕÃû³Æ»òÈ«Îª¿Õ°×µÄÃû³Æ
-	// ³É¹¦·µ»Øtrue£¬Ê§°Ü·µ»Øfalse£¬²¢±£ÁôÔ­Ãû³Æ
+	//ä¿®æ”¹åç§°,æ‹’ç»ç©ºåç§°æˆ–å…¨ä¸ºç©ºç™½çš„åç§°
+	// æˆåŠŸè¿”å›trueï¼Œå¤±è´¥è¿”å›falseï¼Œå¹¶ä¿ç•™åŸåç§°
 	bool rename(const string& newName);
-	//¼ò½éĞŞ¸Ä£ºÔÊĞíÎª¿Õ£¬¾Ü¾ø»Ø³µ»ò»»ĞĞ
-	// ³É¹¦·µ»Øtrue£¬Ê§°Ü·µ»Øfalse£¬²¢±£ÁôÔ­¼ò½é
+	//ç®€ä»‹ä¿®æ”¹ï¼šå…è®¸ä¸ºç©ºï¼Œæ‹’ç»å›è½¦æˆ–æ¢è¡Œ
+	// æˆåŠŸè¿”å›trueï¼Œå¤±è´¥è¿”å›falseï¼Œå¹¶ä¿ç•™åŸç®€ä»‹
 	bool changeDescription(const string& newDescription);
-	//ÉóºËÉçÍÅ£ºÖ»ÔÊĞíÉóºË´ıÉóºËµÄÉçÍÅ
-	//passedÎªtrue±íÊ¾Í¨¹ı£¬false±íÊ¾¾Ü¾ø
-	//²Ù×÷³É¹¦·µ»Øtrue£¬×´Ì¬²»ÊÇpendingÊ±·µ»Øfalse
+	//å®¡æ ¸ç¤¾å›¢ï¼šåªå…è®¸å®¡æ ¸å¾…å®¡æ ¸çš„ç¤¾å›¢
+	//passedä¸ºtrueè¡¨ç¤ºé€šè¿‡ï¼Œfalseè¡¨ç¤ºæ‹’ç»
+	//æ“ä½œæˆåŠŸè¿”å›trueï¼ŒçŠ¶æ€ä¸æ˜¯pendingæ—¶è¿”å›false
 	bool audit(bool passed);
-	//²éÑ¯ÓÃ»§ÊÇ·ñÒÑÔÚÉçÍÅÖĞ
+	//æŸ¥è¯¢ç”¨æˆ·æ˜¯å¦å·²åœ¨ç¤¾å›¢ä¸­
 	bool hasMember(const string& userId)const;
-	//¼ÓÈëÉçÍÅ£ºÈôÎ´ÉóºËÍ¨¹ı¡¢±àºÅÎª¿Õ»òÖØ¸´¼ÓÈëÊ±·µ»Øfalse
+	//åŠ å…¥ç¤¾å›¢ï¼šè‹¥æœªå®¡æ ¸é€šè¿‡ã€ç¼–å·ä¸ºç©ºæˆ–é‡å¤åŠ å…¥æ—¶è¿”å›false
 	bool addMember(const string& userId);
-	//»ñÈ¡³ÉÔ±ÈËÊı
+	//è·å–æˆå‘˜äººæ•°
 	int getMemberCount()const;
-	//É¾³ı³ÉÔ±£º³É¹¦·µ»Øtrue£¬³ÉÔ±²»´æÔÚÊ±·µ»Øfalse
+	//åˆ é™¤æˆå‘˜ï¼šæˆåŠŸè¿”å›trueï¼Œæˆå‘˜ä¸å­˜åœ¨æ—¶è¿”å›false
 	bool removeMember(const string& userId);
-	//ÏÔÊ¾³ÉÔ±ÈËÊıºÍ³ÉÔ±±àºÅ
+	//æ˜¾ç¤ºæˆå‘˜äººæ•°å’Œæˆå‘˜ç¼–å·
 	void showMembers()const;
-	//·µ»Ø³ÉÔ±ÁĞ±íµÄ¸±±¾
+	//è¿”å›æˆå‘˜åˆ—è¡¨çš„å‰¯æœ¬
 	vector<string>getMemberIds()const;
-	//Çå¿Õ³ÉÔ±ÁĞ±í£¬¹©¶ÁÈ¡³ÉÔ±ÎÄ¼şÊ±Ê¹ÓÃ
+	//æ¸…ç©ºæˆå‘˜åˆ—è¡¨ï¼Œä¾›è¯»å–æˆå‘˜æ–‡ä»¶æ—¶ä½¿ç”¨
 	void clearMembers();
-	//»ñÈ¡ÉçÍÅÀàĞÍ£¬ÅÉÉúÀà¿ÉÒÔÌá¹©×Ô¼ºµÄÊµÏÖ
+	//è·å–ç¤¾å›¢ç±»å‹ï¼Œæ´¾ç”Ÿç±»å¯ä»¥æä¾›è‡ªå·±çš„å®ç°
 	virtual string getType()const;
-	//´´½¨µ±Ç°¶ÔÏóµÄ¶ÀÁ¢¸±±¾
-	// ·µ»ØµÄ¶ÔÏóÓÉµ÷ÓÃÕßdelete
+	//åˆ›å»ºå½“å‰å¯¹è±¡çš„ç‹¬ç«‹å‰¯æœ¬
+	// è¿”å›çš„å¯¹è±¡ç”±è°ƒç”¨è€…delete
 	virtual Club* clone()const;
-	//ĞéÎö¹¹º¯Êı£¬ÎªÒÔºóÍ¨¹ı»ùÀàÖ¸Õë¹ÜÀíÅÉÉú¶ÔÏó×ö×¼±¸
+	//è™šææ„å‡½æ•°ï¼Œä¸ºä»¥åé€šè¿‡åŸºç±»æŒ‡é’ˆç®¡ç†æ´¾ç”Ÿå¯¹è±¡åšå‡†å¤‡
 	virtual~Club();
-	//»ñÈ¡·ÖÀàÌØÓĞ×ÊÁÏ£¬ÆÕÍ¨ÉçÍÅ·µ»Ø¿Õ×Ö·û´®
+	//è·å–åˆ†ç±»ç‰¹æœ‰èµ„æ–™ï¼Œæ™®é€šç¤¾å›¢è¿”å›ç©ºå­—ç¬¦ä¸²
 	virtual string getExtraInfo()const;
 };
 

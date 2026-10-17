@@ -1,4 +1,4 @@
-#include"AcademicClub.h"
+ï»¿#include"AcademicClub.h"
 AcademicClub::AcademicClub(const string& id, const string& name, const string& intro, const string& leader, const string& direction):Club(id,name,intro,leader)
 {
 	researchDirection = direction;
@@ -9,7 +9,7 @@ string AcademicClub:: getResearchDirection()const
 }
 string AcademicClub::getType()const
 {
-	return"Ñ§ÊõÉçÍÅ";
+	return"å­¦æœ¯ç¤¾å›¢";
 }
 Club* AcademicClub::clone()const
 {

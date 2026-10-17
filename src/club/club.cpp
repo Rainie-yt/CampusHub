@@ -1,4 +1,4 @@
-#include"club.h"
+ï»¿#include"club.h"
 #include<iostream>
 Club::Club(const string& id, const string& name, const string& intro, const string& leader) 
 {
@@ -33,12 +33,12 @@ bool Club::rename(const string& newName)
 	bool hasValidChar = false;
 	for (int i = 0; i < newName.length(); i++)
 	{
-		//Ãû³Æ²»ÄÜ°üº¬»Ø³µ»ò»»ÐÐ
+		//åç§°ä¸èƒ½åŒ…å«å›žè½¦æˆ–æ¢è¡Œ
 		if (newName[i] == '\r' || newName[i] == '\n')
 		{
 			return false;
 		}	
-		//¼ì²éÊÇ·ñ´æÔÚ·Ç¿Õ×Ö·û
+		//æ£€æŸ¥æ˜¯å¦å­˜åœ¨éžç©ºå­—ç¬¦
 		if (newName[i] != ' ' && newName[i] != '\t' && newName[i] != '\v' && newName[i] != '\f')
 		{
 			hasValidChar = true;
@@ -48,7 +48,7 @@ bool Club::rename(const string& newName)
 	{
 		clubName = newName;
 	}
-	return hasValidChar;//ÓÐ·Ç¿Õ×Ö·û·µ»Øtrue,ÎÞÔò·µ»Øfalse
+	return hasValidChar;//æœ‰éžç©ºå­—ç¬¦è¿”å›žtrue,æ— åˆ™è¿”å›žfalse
 }
 bool Club::changeDescription(const string& newDescription)
 {
@@ -95,7 +95,7 @@ bool Club::addMember(const string& userId)
 	{
 		return false;
 	}
-	//ÓÃ»§±àºÅ²»ÄÜ°üº¬¿Õ°××Ö·û
+	//ç”¨æˆ·ç¼–å·ä¸èƒ½åŒ…å«ç©ºç™½å­—ç¬¦
 	for (int i = 0; i < userId.length(); i++)
 	{
 		if (userId[i] == ' ' || userId[i] == '\t' || userId[i] == '\n'||userId[i]=='\r'||userId[i]=='\v'||userId[i] == '\f')
@@ -128,10 +128,10 @@ bool Club::removeMember(const string& userId)
 }
 void Club::showMembers()const
 {
-	cout << "³ÉÔ±ÈËÊý£º" << getMemberCount() << endl;
+	cout << "æˆå‘˜äººæ•°ï¼š" << getMemberCount() << endl;
 	if (memberIds.empty())
 	{
-		cout << "ÔÝÎÞ³ÉÔ±¡£" << endl;
+		cout << "æš‚æ— æˆå‘˜ã€‚" << endl;
 		return;
 	}
 	for (int i = 0; i < memberIds.size(); i++)
@@ -149,7 +149,7 @@ void Club::clearMembers()
 }
 string Club::getType()const
 {
-	return "ÆÕÍ¨ÉçÍÅ";
+	return "æ™®é€šç¤¾å›¢";
 }
 Club* Club::clone()const
 {

@@ -1,4 +1,4 @@
-#include"ArtClub.h"
+ï»¿#include"ArtClub.h"
 ArtClub::ArtClub(const string& id, const string& name, const string& intro, const string& leader, const string& category):Club(id,name,intro,leader)
 {
 	artCategory = category;
@@ -9,7 +9,7 @@ string ArtClub::getArtCategory()const
 }
 string ArtClub::getType()const
 { 
-	return"ÒÕÊõÉçÍÅ";
+	return"è‰ºæœ¯ç¤¾å›¢";
 }
 Club* ArtClub::clone()const
 {

@@ -1,5 +1,5 @@
-#include"SportsClub.h"
-//ÏÈµ÷ÓÃ»ùÀà¹¹Ôìº¬º¯Êı³õÊ¼»¯¹²ÓĞ×ÊÁÏ£¬ÔÙ±£´æÔË¶¯ÏîÄ¿
+ï»¿#include"SportsClub.h"
+//å…ˆè°ƒç”¨åŸºç±»æ„é€ å«å‡½æ•°åˆå§‹åŒ–å…±æœ‰èµ„æ–™ï¼Œå†ä¿å­˜è¿åŠ¨é¡¹ç›®
 SportsClub::SportsClub(const string& id, const string& name, const string& intro, const string& leader, const string& sportName)
 	:Club(id,name,intro,leader)
 {
@@ -11,7 +11,7 @@ string SportsClub::getSport()const
 }
 string SportsClub::getType()const
 {
-	return"ÌåÓıÉçÍÅ";
+	return"ä½“è‚²ç¤¾å›¢";
 }
 Club* SportsClub::clone()const
 {

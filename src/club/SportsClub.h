@@ -1,9 +1,9 @@
-#pragma once
+ï»¿#pragma once
 #include"club.h"
 class SportsClub :public Club
 {
 private:
-	string sport;//ÔË¶¯ÏîÄ¿£¬ÀıÈçÀºÇò¡¢ÓğÃ«Çò
+	string sport;//è¿åŠ¨é¡¹ç›®ï¼Œä¾‹å¦‚ç¯®çƒã€ç¾½æ¯›çƒ
 public:
 	SportsClub(const string& id, const string& name, const string& intro, const string& leader, const string& sportName);
 	string getSport()const;

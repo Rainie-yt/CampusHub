@@ -1,10 +1,10 @@
-#include"ClubService.h"
+ï»¿#include"ClubService.h"
 #include<iostream>
 #include<fstream>
 #include"SportsClub.h"
 #include"AcademicClub.h"
 #include"ArtClub.h"
-//±éÀúÉçÍÅÁĞ±í£¬ÕÒµ½Ö¸¶¨±àºÅ¾Í·µ»ØÏÂ±ê
+//éå†ç¤¾å›¢åˆ—è¡¨ï¼Œæ‰¾åˆ°æŒ‡å®šç¼–å·å°±è¿”å›ä¸‹æ ‡
 ClubService::ClubService()
 {
 
@@ -39,12 +39,12 @@ bool ClubService::addClub(const Club& club)
 	string name = club.getClubName();
 	string intro = club.getDescription();
 	string extraInfo = club.getExtraInfo();
-	//ÉçÍÅ±àºÅºÍ¸ºÔğÈË±àºÅ²»ÄÜÎª¿Õ
+	//ç¤¾å›¢ç¼–å·å’Œè´Ÿè´£äººç¼–å·ä¸èƒ½ä¸ºç©º
 	if (id.empty() || leader.empty())
 	{
 		return false;
 	}
-	//ÉçÍÅ±àºÅ²»ÄÜ°üº¬¿Õ°××Ö·û
+	//ç¤¾å›¢ç¼–å·ä¸èƒ½åŒ…å«ç©ºç™½å­—ç¬¦
 	for (int i = 0; i < id.length(); i++)
 	{
 		if (id[i] == ' ' || id[i] == '\t' || id[i] == '\r' || id[i] == '\n' || id[i] == '\v' || id[i] == '\f')
@@ -52,7 +52,7 @@ bool ClubService::addClub(const Club& club)
 			return false;
 		}
 	}	
-	//¸ºÔğÈË±àºÅ²»ÄÜ°üº¬¿Õ°××Ö·û
+	//è´Ÿè´£äººç¼–å·ä¸èƒ½åŒ…å«ç©ºç™½å­—ç¬¦
 		for (int i = 0; i < leader.length(); i++)
 		{
 			if (leader[i] == ' ' || leader[i] == '\t' || leader[i] == '\r' || leader[i] == '\n' || leader[i] == '\v' || leader[i] == '\f')
@@ -60,7 +60,7 @@ bool ClubService::addClub(const Club& club)
 				return false;
 			}
 		}
-		//Ãû³Æ²»ÄÜÈ«Îª¿Õ°×£¬Ò²²»ÄÜ°üº¬»»ĞĞ
+		//åç§°ä¸èƒ½å…¨ä¸ºç©ºç™½ï¼Œä¹Ÿä¸èƒ½åŒ…å«æ¢è¡Œ
 		bool hasValidChar = false;
 		for (int i = 0; i < name.length(); i++)
 		{
@@ -77,12 +77,12 @@ bool ClubService::addClub(const Club& club)
 		{
 			return false;
 		}
-		//ÉçÍÅ±àºÅ²»ÄÜÖØ¸´
+		//ç¤¾å›¢ç¼–å·ä¸èƒ½é‡å¤
 	if (findClubIndex(club.getClubId()) != -1)
 	{
 		return false;
 	}
-	//¼ò½é²»ÄÜ»»ĞĞ£¬±ÜÃâÆÆ»µÎÄ¼ş¸ñÊ½
+	//ç®€ä»‹ä¸èƒ½æ¢è¡Œï¼Œé¿å…ç ´åæ–‡ä»¶æ ¼å¼
 	for (int i = 0; i < intro.length(); i++)
 	{
 		if (intro[i] == '\r' || intro[i] == '\n')
@@ -90,7 +90,7 @@ bool ClubService::addClub(const Club& club)
 			return false;
 		}
 	}
-	//·ÖÀà×ÊÁÏ²»ÄÜ°üº¬»»ĞĞ»ò»Ø³µ
+	//åˆ†ç±»èµ„æ–™ä¸èƒ½åŒ…å«æ¢è¡Œæˆ–å›è½¦
 	for (int i = 0; i < extraInfo.length(); i++)
 	{
 		if (extraInfo[i] == '\r' || extraInfo[i] == '\n')
@@ -105,17 +105,17 @@ void ClubService::showAllClubs()const
 {
 	if (clubs.empty())
 	{
-		cout << "ÔİÎŞÉçÍÅ¡£" << endl;
+		cout << "æš‚æ— ç¤¾å›¢ã€‚" << endl;
 		return;
 	}
 	for (int i = 0; i < clubs.size(); i++)
 	{
 		cout << "------------" << endl;
-		cout << "±àºÅ£º" << clubs[i]->getClubId() << endl;
-		cout << "Ãû³Æ£º" << clubs[i]->getClubName() << endl;
-		cout << "¼ò½é£º" << clubs[i]->getDescription() << endl;
-		cout << "¸ºÔğÈË£º" << clubs[i]->getLeaderId() << endl;
-		cout << "ÉóºË×´Ì¬£º" << clubs[i]->getStatus() << endl;
+		cout << "ç¼–å·ï¼š" << clubs[i]->getClubId() << endl;
+		cout << "åç§°ï¼š" << clubs[i]->getClubName() << endl;
+		cout << "ç®€ä»‹ï¼š" << clubs[i]->getDescription() << endl;
+		cout << "è´Ÿè´£äººï¼š" << clubs[i]->getLeaderId() << endl;
+		cout << "å®¡æ ¸çŠ¶æ€ï¼š" << clubs[i]->getStatus() << endl;
 	}
 }
 void ClubService::showClubInfo(const string& clubId)const
@@ -123,21 +123,21 @@ void ClubService::showClubInfo(const string& clubId)const
 	int index = findClubIndex(clubId);
 	if (index == -1)
 	{
-		cout << "Î´ÕÒµ½¸ÃÉçÍÅ¡£" << endl;
+		cout << "æœªæ‰¾åˆ°è¯¥ç¤¾å›¢ã€‚" << endl;
 		return;
 	}
 	cout << "------------" << endl;
-	cout << "ÀàĞÍ£º" << clubs[index]->getType() << endl;
+	cout << "ç±»å‹ï¼š" << clubs[index]->getType() << endl;
 	string extraInfo = clubs[index]->getExtraInfo();
 	if (!extraInfo.empty())
 	{
-		cout << "·ÖÀà×ÊÁÏ£º" << extraInfo << endl;
+		cout << "åˆ†ç±»èµ„æ–™ï¼š" << extraInfo << endl;
 	}
-	cout << "±àºÅ£º" << clubs[index]->getClubId() << endl;
-	cout << "Ãû³Æ£º" << clubs[index]->getClubName() << endl;
-	cout << "¼ò½é£º" << clubs[index]->getDescription() << endl;
-	cout << "¸ºÔğÈË£º" << clubs[index]->getLeaderId() << endl;
-	cout << "ÉóºË×´Ì¬£º" << clubs[index]->getStatus() << endl;
+	cout << "ç¼–å·ï¼š" << clubs[index]->getClubId() << endl;
+	cout << "åç§°ï¼š" << clubs[index]->getClubName() << endl;
+	cout << "ç®€ä»‹ï¼š" << clubs[index]->getDescription() << endl;
+	cout << "è´Ÿè´£äººï¼š" << clubs[index]->getLeaderId() << endl;
+	cout << "å®¡æ ¸çŠ¶æ€ï¼š" << clubs[index]->getStatus() << endl;
 }
 bool ClubService::modifyClubInfo(const string& operatorId, const string& clubId, const string& newName, const string& newDescription)
 {
@@ -146,12 +146,12 @@ bool ClubService::modifyClubInfo(const string& operatorId, const string& clubId,
 	{
 		return false;
 	}
-	//²Ù×÷ÈË±ØĞëÊÇ¸ÃÉçÍÅ¸ºÔğÈË
+	//æ“ä½œäººå¿…é¡»æ˜¯è¯¥ç¤¾å›¢è´Ÿè´£äºº
 	if (clubs[index]->getLeaderId() != operatorId)
 	{
 		return false;
 	}
-	//Ãû³Æ²»ÄÜ°üº¬»Ø³µ»ò»»ĞĞ
+	//åç§°ä¸èƒ½åŒ…å«å›è½¦æˆ–æ¢è¡Œ
 	for (int i = 0; i < newName.length(); i++)
 	{
 		if (newName[i] == '\r' || newName[i] == '\n')
@@ -159,7 +159,7 @@ bool ClubService::modifyClubInfo(const string& operatorId, const string& clubId,
 			return false;
 		}
 	}
-	//¼ò½é²»ÄÜ°üº¬»Ø³µ»ò»»ĞĞ
+	//ç®€ä»‹ä¸èƒ½åŒ…å«å›è½¦æˆ–æ¢è¡Œ
 	for (int i = 0; i < newDescription.length(); i++)
 	{
 		if (newDescription[i] == '\r' || newDescription[i] == '\n')
@@ -167,7 +167,7 @@ bool ClubService::modifyClubInfo(const string& operatorId, const string& clubId,
 			return false;
 		}
 	}
-	//ÏÈÑéÖ¤²¢ĞŞ¸ÄÃû³Æ£¬Ãû³ÆÎŞĞ§¾Í½áÊø
+	//å…ˆéªŒè¯å¹¶ä¿®æ”¹åç§°ï¼Œåç§°æ— æ•ˆå°±ç»“æŸ
 	if (clubs[index]->rename(newName) == false)
 	{
 		return false;
@@ -207,15 +207,15 @@ void ClubService::showClubMembers(const string& clubId)const
 	int index = findClubIndex(clubId);
 	if (index == -1)
 	{
-		cout << "Î´ÕÒµ½¸ÃÉçÍÅ¡£" << endl;
+		cout << "æœªæ‰¾åˆ°è¯¥ç¤¾å›¢ã€‚" << endl;
 		return;
 	}
 	clubs[index]->showMembers();
 }
 bool ClubService::saveClubs(const string& fileName)const
 {
-	//·ÖÀà×ÊÁÏÒ²±ØĞë±£³Öµ¥ĞĞ
-	//ÏÈ¼ì²é£¬ÔÙ´ò¿ªÎÄ¼ş£¬±ÜÃâ¼ì²éÊ§°ÜÊ±¸²¸ÇÔ­ÎÄ¼ş
+	//åˆ†ç±»èµ„æ–™ä¹Ÿå¿…é¡»ä¿æŒå•è¡Œ
+	//å…ˆæ£€æŸ¥ï¼Œå†æ‰“å¼€æ–‡ä»¶ï¼Œé¿å…æ£€æŸ¥å¤±è´¥æ—¶è¦†ç›–åŸæ–‡ä»¶
 	for (int i = 0; i < clubs.size(); i++)
 	{
 		string extraInfo = clubs[i]->getExtraInfo();
@@ -243,7 +243,7 @@ bool ClubService::saveClubs(const string& fileName)const
 		file << clubs[i]->getStatus() << '\n';
 	}
 	file.close();
-	//¼ì²âÎÄ¼ş²Ù×÷ÓĞÃ»ÓĞ±¨¸æ´íÎó£¬ÎŞÔò·µ»Øtrue£¬ÓĞ´íÎóÔò·µ»Øfalse
+	//æ£€æµ‹æ–‡ä»¶æ“ä½œæœ‰æ²¡æœ‰æŠ¥å‘Šé”™è¯¯ï¼Œæ— åˆ™è¿”å›trueï¼Œæœ‰é”™è¯¯åˆ™è¿”å›false
 	return !file.fail();
 }
 bool ClubService::loadClubs(const string& fileName)
@@ -253,8 +253,8 @@ bool ClubService::loadClubs(const string& fileName)
 	{
 		return false;
 	}
-	//ÔİÊ±¶ÁÈ¡½á¹û£¬¶ÁÈ¡³É¹¦ºó²ÅÌæ»»Ô­ÁĞ±í
-	ClubService loadedService;//×¨ÃÅ¼ì²é¶ÁÈ¡µÄ×ÊÁÏ
+	//æš‚æ—¶è¯»å–ç»“æœï¼Œè¯»å–æˆåŠŸåæ‰æ›¿æ¢åŸåˆ—è¡¨
+	ClubService loadedService;//ä¸“é—¨æ£€æŸ¥è¯»å–çš„èµ„æ–™
 	string type;
 	string extraInfo;
 	string id;
@@ -264,26 +264,26 @@ bool ClubService::loadClubs(const string& fileName)
 	string savedStatus;
 	while (getline(file,type ))
 	{
-		//±àºÅÖ®ºó±ØĞë»¹ÓĞËÄĞĞ×ÊÁÏ
+		//ç¼–å·ä¹‹åå¿…é¡»è¿˜æœ‰å››è¡Œèµ„æ–™
 		if (!getline(file,extraInfo)||!getline(file,id)||!getline(file, name) || !getline(file, intro) || !getline(file, leader) || !getline(file, savedStatus))
 		{
 			return false;
 		}
 		Club* club = nullptr;
-		//¸ù¾İÀàĞÍ´´½¨¶ÔÓ¦¶ÔÏó
-		if (type == "ÌåÓıÉçÍÅ")
+		//æ ¹æ®ç±»å‹åˆ›å»ºå¯¹åº”å¯¹è±¡
+		if (type == "ä½“è‚²ç¤¾å›¢")
 		{
 			club = new SportsClub(id, name, intro, leader, extraInfo);
 		}
-		else if (type == "Ñ§ÊõÉçÍÅ")
+		else if (type == "å­¦æœ¯ç¤¾å›¢")
 		{
 			club = new AcademicClub(id, name, intro, leader, extraInfo);
 		}
-		else if (type == "ÒÕÊõÉçÍÅ")
+		else if (type == "è‰ºæœ¯ç¤¾å›¢")
 		{
 			club = new ArtClub(id, name, intro, leader, extraInfo);
 		}
-		else if (type == "ÆÕÍ¨ÉçÍÅ")
+		else if (type == "æ™®é€šç¤¾å›¢")
 		{
 			if (!extraInfo.empty())
 			{
@@ -295,7 +295,7 @@ bool ClubService::loadClubs(const string& fileName)
 		{
 			return false;
 		}
-		//¹¹ÔìÊ±Ä¬ÈÏpending£¬¸ù¾İÎÄ¼ş»Ö¸´ÉóºË×´Ì¬
+		//æ„é€ æ—¶é»˜è®¤pendingï¼Œæ ¹æ®æ–‡ä»¶æ¢å¤å®¡æ ¸çŠ¶æ€
 		if (savedStatus == "approved")
 		{
 			club->audit(true);
@@ -309,9 +309,9 @@ bool ClubService::loadClubs(const string& fileName)
 			delete club;
 			return false;
 		}
-		//addedClub»á¼ì²é×ÊÁÏ£¬²¢±£´æÒ»¸ö¶ÀÁ¢¸±±¾
+		//addedClubä¼šæ£€æŸ¥èµ„æ–™ï¼Œå¹¶ä¿å­˜ä¸€ä¸ªç‹¬ç«‹å‰¯æœ¬
 		bool added = loadedService.addClub(*club);
-		//ÁÙÊ±¶ÔÏóÒÑ±»ÓÃÍê£¬ÎŞÂÛÌí¼ÓÊÇ·ñ³É¹¦£¬¶¼ĞèÒªÊÍ·Å
+		//ä¸´æ—¶å¯¹è±¡å·²è¢«ç”¨å®Œï¼Œæ— è®ºæ·»åŠ æ˜¯å¦æˆåŠŸï¼Œéƒ½éœ€è¦é‡Šæ”¾
 		delete club;
 		club = nullptr;
 		if (added == false)
@@ -319,7 +319,7 @@ bool ClubService::loadClubs(const string& fileName)
 			return false;
 		}
 	}
-	//Õı³£µ½´ïÎÄ¼şÄ©Î²¿ÉÒÔ½áÊø£¬ÆäËû´íÎóÔòÊ§°Ü
+	//æ­£å¸¸åˆ°è¾¾æ–‡ä»¶æœ«å°¾å¯ä»¥ç»“æŸï¼Œå…¶ä»–é”™è¯¯åˆ™å¤±è´¥
 	if (file.bad() || !file.eof())
 	{
 		return false;
@@ -358,7 +358,7 @@ bool ClubService::loadMembers(const string& fileName)
 		return false;
 	}
 	ClubService loadedService;
-	//Ã¿¸öÉçÍÅ¶¼´´½¨¶ÀÁ¢¸±±¾£¬²»ÄÜÖ±½Ó¸´ÖÆÖ¸ÕëÁĞ±í
+	//æ¯ä¸ªç¤¾å›¢éƒ½åˆ›å»ºç‹¬ç«‹å‰¯æœ¬ï¼Œä¸èƒ½ç›´æ¥å¤åˆ¶æŒ‡é’ˆåˆ—è¡¨
 	for (int i = 0; i < clubs.size(); i++)
 	{
 		loadedService.clubs.push_back(clubs[i]->clone());
@@ -368,7 +368,7 @@ bool ClubService::loadMembers(const string& fileName)
 	string userId;
 	while (file >> clubId)
 	{
-		//¶Áµ½ÁËÉçÍÅ±àºÅ£¬¾Í±ØĞë»¹ÄÜ¶Áµ½ÓÃ»§±àºÅ
+		//è¯»åˆ°äº†ç¤¾å›¢ç¼–å·ï¼Œå°±å¿…é¡»è¿˜èƒ½è¯»åˆ°ç”¨æˆ·ç¼–å·
 		if (!(file >> userId))
 		{
 			return false;
@@ -405,13 +405,13 @@ void ClubService::showMyClubs(const string& userId)const
 	{
 		if (clubs[i]->hasMember(userId))
 		{
-			cout << "±àºÅ£º" << clubs[i]->getClubId() << " Ãû³Æ£º" << clubs[i]->getClubName() << endl;
+			cout << "ç¼–å·ï¼š" << clubs[i]->getClubId() << " åç§°ï¼š" << clubs[i]->getClubName() << endl;
 			found = true;
 		}
 	}
 	if (found == false)
 	{
-		cout << "ÉĞÎ´¼ÓÈëÈÎºÎÉçÍÅ¡£" << endl;
+		cout << "å°šæœªåŠ å…¥ä»»ä½•ç¤¾å›¢ã€‚" << endl;
 	}
 }
 void ClubService::showApprovedClubs()const
@@ -427,7 +427,7 @@ void ClubService::showApprovedClubs()const
 	}
 	if (found == false)
 	{
-		cout << "ÔİÎŞÉóºËÍ¨¹ıµÄÉçÍÅ¡£" << endl;
+		cout << "æš‚æ— å®¡æ ¸é€šè¿‡çš„ç¤¾å›¢ã€‚" << endl;
 	}
 }
 bool ClubService::deleteClub(const string& clubId)
@@ -441,7 +441,7 @@ bool ClubService::deleteClub(const string& clubId)
 	{
 		return false;
 	}
-	//ÏÈÊÍ·ÅÉçÍÅ¶ÔÏó£¬ÔÙÒÆ³ıÁĞ±íÖĞµÄÖ¸Õë
+	//å…ˆé‡Šæ”¾ç¤¾å›¢å¯¹è±¡ï¼Œå†ç§»é™¤åˆ—è¡¨ä¸­çš„æŒ‡é’ˆ
 	delete clubs[index];
 	clubs.erase(clubs.begin() + index);
 	return true;
@@ -499,7 +499,7 @@ void ClubService::searchApprovedClubs(const string& keyword)const
 {
 	if (keyword.empty())
 	{
-		cout << "ÇëÊäÈëËÑË÷¹Ø¼ü´Ê¡£" << endl;
+		cout << "è¯·è¾“å…¥æœç´¢å…³é”®è¯ã€‚" << endl;
 		return;
 	}
 	bool found = false;
@@ -511,11 +511,11 @@ void ClubService::searchApprovedClubs(const string& keyword)const
 		}
 		string name = clubs[i]->getClubName();
 		bool matched = false;
-		//´ÓÃû³Æ²»Í¬µÄÎ»ÖÃ¿ªÊ¼³¢ÊÔÆ¥Åä
+		//ä»åç§°ä¸åŒçš„ä½ç½®å¼€å§‹å°è¯•åŒ¹é…
 		for (int start =0 ; start + keyword.length() <= name.length(); start++)
 		{
 			bool same = true;
-			//Öğ¸ö±È½Ï¹Ø¼ü´ÊÖĞµÄ×Ö·û
+			//é€ä¸ªæ¯”è¾ƒå…³é”®è¯ä¸­çš„å­—ç¬¦
 			for (int j = 0; j < keyword.length(); j++)
 			{
 				if (name[start + j] != keyword[j])
@@ -538,6 +538,6 @@ void ClubService::searchApprovedClubs(const string& keyword)const
 	}
 	if (found == false)
 	{
-		cout << "Ã»ÓĞÕÒµ½·ûºÏÌõ¼şµÄÉçÍÅ¡£" << endl;
+		cout << "æ²¡æœ‰æ‰¾åˆ°ç¬¦åˆæ¡ä»¶çš„ç¤¾å›¢ã€‚" << endl;
 	}
 }
