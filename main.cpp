@@ -1,3 +1,4 @@
+#include<windows.h>
 #include<iostream>
 #include"src/user/UserManager.h"
 #include"src/common/InputUtils.h"
@@ -34,6 +35,8 @@ int main(){
         - 读取 users.txt
         - 创建用户对象
     */
+   SetConsoleOutputCP(CP_UTF8);
+   SetConsoleCP(CP_UTF8);
    UserManager userManager;
    //系统主循环
    while(true){

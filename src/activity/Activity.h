@@ -1,5 +1,5 @@
 #pragma once
-#include <stirng>
+#include <string>
 #include <vector>
 using namespace std;
 
@@ -11,7 +11,7 @@ class Activity {
 		string activityName;
 		string tags;  //兴趣标签，逗号分隔“科技，学术”
 		string startTime;  //"2026-09-25 14:00"
-		stringg endTime;
+		string endTime;
 		int maxPeople;
 		int currentPeople;
 		vector<string> waitList;
@@ -26,7 +26,7 @@ public:
 	string getEndTime() const;
 	int getMax() const;
 	int getCur() const;
-	vector<string> gatWaitList() const;
+	vector<string> getWaitList() const;
 	
 	//修改当前报名人数
 	void addCur();

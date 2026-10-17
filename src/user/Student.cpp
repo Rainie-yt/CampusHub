@@ -1,7 +1,7 @@
 #include"Student.h"
 #include<iostream>
 #include<algorithm>
-#include"src/common/InputUtils.h"
+#include"../common/InputUtils.h"
 #include"UserManager.h"
 Student::Student(string id,string name,string pwd,string maj):User(id,name,pwd,"Student"),major(maj)
 {
@@ -9,8 +9,14 @@ Student::Student(string id,string name,string pwd,string maj):User(id,name,pwd,"
 string Student::getMajor()const{
     return major;
 }
+vector<pair<string,string>> fakeClubs = {
+    {"机器人协会", "科技,机器人"},
+    {"篮球社", "体育,运动"},
+    {"辩论社", "人文,演讲"},
+    {"摄影协会", "艺术,摄影"}
+};
+//假数据，等社团模块做好换成真实读取社团列表的代码
 void Student::showMenu(){
-    int choice=readIntChoice();
     while(true){
         cout<<endl;
         cout<<"欢迎您，"<<userName<<"！"<<endl;
@@ -25,6 +31,7 @@ void Student::showMenu(){
         cout<<"0.退出登录"<<endl;
         cout<<endl;
         cout<<"请选择：";
+        int choice=readIntChoice();
         switch(choice){
             case 1:
                 showInfoMenu();
@@ -41,7 +48,7 @@ void Student::showMenu(){
                 //活动模块负责提供我的报名活动信息
                 break;
             case 5:
-                //兴趣推荐，活动模块负责提供活动标签
+                recommendClubs();
                 break;
             case 0:
                 cout<<"退出登录"<<endl;
@@ -52,7 +59,6 @@ void Student::showMenu(){
     }
 }
 void Student::showInfoMenu(){
-    int choice=readIntChoice();
     while(true){
     cout<<endl;
     cout<<"========个人信息管理========"<<endl;
@@ -68,6 +74,7 @@ void Student::showInfoMenu(){
     cout<<"0.返回上级菜单"<<endl;
     cout<<endl;
     cout<<"请选择：";
+    int choice=readIntChoice();
     switch(choice){
         case 1:
             {
@@ -90,7 +97,6 @@ void Student::showInfoMenu(){
     }
 }
 void Student::modifyInterest(){
-    int choice=readIntChoice();
     while(true){
         cout<<endl;
         cout<<"========兴趣标签管理========"<<endl;
@@ -102,6 +108,7 @@ void Student::modifyInterest(){
         cout<<"0.返回上级菜单"<<endl;
         cout<<endl;
         cout<<"请选择：";
+        int choice=readIntChoice();
         switch(choice){
             case 1:
                 {
@@ -176,4 +183,17 @@ vector<string> Student::getInterests()const{
 void Student::showMyActivityMenu()
 {
     // TODO：后续对接活动模块
+}
+void Student::recommendClubs()const{
+    vector<string> myInterests=getInterests();
+    //把学生兴趣标签取出来存在一个列表里
+    for(auto& club:fakeClubs){
+        for(auto& interest:myInterests){
+            //学生的兴趣标签去与社团标签比对
+            if(club.second.find(interest)!=string::npos){
+                cout<<"推荐社团："<<club.first<<endl;
+                break;
+            }
+        }
+    }
 }

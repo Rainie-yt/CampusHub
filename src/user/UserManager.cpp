@@ -202,56 +202,58 @@ bool UserManager::userExists(const string& userId){
 */
 User* UserManager::login(){
     string userId;
-    string password;
     cout<<endl;
     cout<<"========用户登录========"<<endl;
     cout<<"请输入用户ID：";
     cin>>userId;
-    cout<<"请输入密码：";
-    cin>>password;
+
     ifstream file(userFile);
     if(!file.is_open()){
         cout<<"无法打开用户数据文件！"<<endl;
         return nullptr;
     }
+
+    //第一遍：只查ID存不存在，不问密码
     string line;
-    //逐行读取用户数据
+    vector<string> fields;
+    bool found=false;
     while(getline(file,line)){
         if(!line.empty()&&line.back()=='\r'){
             line.pop_back();
         }
-        //跳过空行
         if(line.empty()){
             continue;
         }
-        //按“|”分割数据
-        vector<string> fields=split(line,'|');
-        //数据格式不正确
-        if(fields.size()<6){
+        vector<string> currentFields=split(line,'|');
+        if(currentFields.size()<6){
             continue;
         }
-        //fields[0]是用户ID，fields[2]是密码
-        if(fields[0]==userId){
-            //找到了对应用户
-            if(fields[2]==password){
-                cout<<"登录成功！"<<endl;
-                //根据用户角色创建对象
-                User* user=createUser(fields);
-                file.close();
-                return user;
-            }
-            else{
-                //用户ID正确，但密码错误
-                cout<<"密码错误！"<<endl;
-                file.close();
-                return nullptr;
-            }
+        if(currentFields[0]==userId){
+            fields=currentFields;
+            found=true;
+            break;
         }
     }
-    //遍历整个文件仍然没有找到用户
     file.close();
-    cout<<"用户ID不存在！"<<endl;
-    return nullptr;
+
+    //ID不存在，直接结束，不问密码
+    if(!found){
+        cout<<"用户ID不存在！"<<endl;
+        return nullptr;
+    }
+
+    //ID存在，再问密码
+    string password;
+    cout<<"请输入密码：";
+    cin>>password;
+
+    if(fields[2]!=password){
+        cout<<"密码错误！"<<endl;
+        return nullptr;
+    }
+
+    cout<<"登录成功！"<<endl;
+    return createUser(fields);
 }
 /*
     用户注册函数
@@ -321,3 +323,26 @@ bool UserManager::registerUser(){
    cout<<"注册成功！"<<endl;
    return true;
 }
+string UserManager::getUserNameById(const string& userId){
+    ifstream file(userFile);
+    if(!file.is_open()){
+      return "";
+    }
+    string line;
+    while(getline(file,line)){
+      if(!line.empty()&&line.back()=='\r'){
+        line.pop_back();
+      }
+      if(line.empty()){
+        continue;
+      }
+      vector<string> fields=split(line,'|');
+      if(!fields.empty()&&fields[0]==userId){
+        file.close();
+        return fields[1];
+      }
+    }
+    file.close();
+    return "";
+    //遍历完都没找到，说明这个ID不存在
+  }

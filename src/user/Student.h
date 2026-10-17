@@ -21,4 +21,5 @@ class Student:public User{
     void modifyInterest();
     void showInterests()const;
     vector<string> getInterests()const;
+    void recommendClubs()const;
 };

@@ -2,16 +2,16 @@
 Activity::Activity(string aid, string cid, string name, 
 	string tag, string st, string et, int maxp):activityId(aid), clubId(cid), activityName(name), tags(tag),
 	startTime(st), endTime(et), maxPeople(maxp), currentPeople(0){ }
-string Acitvity::getActivityId() const {
+string Activity::getActivityId() const {
 	return activityId;
 }
-string Acitvity::getClubId() const {
+string Activity::getClubId() const {
   return clubId;
 }
-string Acitvity::getName() const {
-	return activityname;
+string Activity::getName() const {
+	return activityName;
 }
-string Acitvity::getTags() const {
+string Activity::getTags() const {
 	return tags;
 }
 string Activity::getStartTime() const { 

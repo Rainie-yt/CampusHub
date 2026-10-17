@@ -1,11 +1,10 @@
 #include"Admin.h"
 #include<iostream>
-#include"src/common/InputUtils.h"
+#include"../common/InputUtils.h"
 Admin::Admin(string id,string name,string pwd):User(id,name,pwd,"Admin")
 {
 }
 void Admin::showMenu(){
-    int choice=readIntChoice();
     while(true){
     cout<<endl;
     cout<<"欢迎您，"<<userName<<"！"<<endl;
@@ -19,6 +18,7 @@ void Admin::showMenu(){
     cout<<"0.退出登录"<<endl;
     cout<<endl;
     cout<<"请选择：";
+    int choice=readIntChoice();
     switch(choice){
         case 1:{
             userManageMenu();
@@ -48,7 +48,6 @@ void Admin::showMenu(){
 }
 //用户管理子菜单
 void Admin::userManageMenu(){
-    int choice=readIntChoice();
     while(true){
         cout<<endl;
         cout<<"========用户管理========"<<endl;
@@ -57,6 +56,7 @@ void Admin::userManageMenu(){
         cout<<"3.冻结用户账号"<<endl;
         cout<<"4.修改用户角色"<<endl;
         cout<<"0.返回上一级菜单"<<endl;
+        int choice=readIntChoice();
         switch(choice){
             case 1:{
                 showAllUsers();
@@ -96,7 +96,6 @@ void Admin::modifyUserRole(){
 }
 //社团管理：需要调用社团模块
 void Admin::clubManageMenu(){
-    int choice=readIntChoice();
     while(true){
         cout<<endl;
         cout<<"========社团管理========"<<endl;
@@ -104,6 +103,7 @@ void Admin::clubManageMenu(){
         cout<<"2.审核社团申请"<<endl;
         cout<<"3.删除违规社团"<<endl;
         cout<<"0.返回上一级菜单"<<endl;
+        int choice=readIntChoice();
         switch(choice){
             case 1:{
                 viewClubInfo();
@@ -149,7 +149,6 @@ void Admin::deleteClub()
 */
 void Admin::activityManageMenu()
 {
-    int choice=readIntChoice();
     while(true)
     {
         cout<<endl;
@@ -158,6 +157,7 @@ void Admin::activityManageMenu()
         cout<<"2.审核活动"<<endl;
         cout<<"3.删除违规活动"<<endl;
         cout<<"0.返回上一级菜单"<<endl;
+        int choice=readIntChoice();
        switch(choice)
         {
         case 1:
@@ -214,7 +214,6 @@ void Admin::removeActivity()
 }
 void Admin::systemStatisticsMenu()
 {
-    int choice=readIntChoice();
     while(true)
     {
     cout<<endl;
@@ -225,6 +224,7 @@ void Admin::systemStatisticsMenu()
     cout<<"0.返回上一级菜单"<<endl;
     cout<<endl;
     cout<<"请选择：";
+    int choice=readIntChoice();
     switch (choice)
         {
         case 1:

@@ -1,12 +1,11 @@
 #include"ClubManager.h"
 #include<iostream>
-#include"src/common/InputUtils.h"
+#include"../common/InputUtils.h"
 ClubManager::ClubManager(string id,string name,string pwd,string maj,string cid):Student(id,name,pwd,maj),clubId(cid)
 {
     role="ClubManager";
 }
 void ClubManager::showMenu(){
-    int choice=readIntChoice();
     while(true){
     cout<<endl;
     cout<<"欢迎您，"<<userName<<"！"<<endl;
@@ -22,6 +21,7 @@ void ClubManager::showMenu(){
     cout<<"0.退出登录"<<endl;
     cout<<endl;
     cout<<"请选择：";
+    int choice=readIntChoice();
         switch(choice)
         {
         case 1:{
@@ -59,7 +59,6 @@ void ClubManager::showMenu(){
 }
 }
 void ClubManager::clubManageMenu(){
-    int choice=readIntChoice();
     while(true)
     {
         cout<<"========社团管理========"<<endl;
@@ -70,6 +69,7 @@ void ClubManager::clubManageMenu(){
         cout<<"0.返回上一级菜单"<<endl;
         cout<<endl;
         cout<<"请选择：";
+        int choice=readIntChoice();
         switch(choice)
         {
         case 1:
@@ -94,7 +94,6 @@ void ClubManager::clubManageMenu(){
 }
 void ClubManager::activityManageMenu()
 {
-    int choice=readIntChoice();
     while(true)
     {
         cout<<"========活动管理========"<<endl;
@@ -106,6 +105,7 @@ void ClubManager::activityManageMenu()
         cout<<"0.返回上一级菜单"<<endl;
         cout<<endl;
         cout<<"请选择：";
+        int choice=readIntChoice();
         switch(choice)
         {
         case 1:

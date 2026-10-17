@@ -56,5 +56,6 @@ class UserManager{
    返回User*，利用多态保存不同的派生类对象
    */
   bool userExists(const string& userId);
+  string getUserNameById(const string& userId);
 };
 #endif
