@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include"club.h"
 class SportsClub :public Club
 {

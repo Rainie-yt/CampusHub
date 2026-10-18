@@ -1,4 +1,5 @@
-﻿#include"club.h"
+#include"club.h"
+#include"../common.h"
 #include<iostream>
 Club::Club(const string& id, const string& name, const string& intro, const string& leader) 
 {
@@ -6,7 +7,7 @@ Club::Club(const string& id, const string& name, const string& intro, const stri
 	clubName = name;
 	description = intro;
 	leaderId = leader;
-	status = "pending";
+	status = STATUS_PENDING;
 }
 string Club::getClubName()const
 {
@@ -64,17 +65,17 @@ bool Club::changeDescription(const string& newDescription)
 }
 bool Club::audit(bool passed)
 {
-	if (status != "pending")
+	if (status != STATUS_PENDING)
 	{
 		return false;
 	}
 	if (passed)
 	{
-		status = "approved";
+		status = STATUS_APPROVED;
 	}
 	else
 	{
-		status = "rejected";
+		status = STATUS_REJECTED;
 	}
 	return true;
 }
@@ -91,7 +92,7 @@ bool Club::hasMember(const string& userId)const
 }
 bool Club::addMember(const string& userId)
 {
-	if (status != "approved" || userId.empty())
+	if (status != STATUS_APPROVED || userId.empty())
 	{
 		return false;
 	}

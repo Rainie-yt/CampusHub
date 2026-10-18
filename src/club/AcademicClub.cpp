@@ -1,4 +1,4 @@
-﻿#include"AcademicClub.h"
+#include"AcademicClub.h"
 AcademicClub::AcademicClub(const string& id, const string& name, const string& intro, const string& leader, const string& direction):Club(id,name,intro,leader)
 {
 	researchDirection = direction;

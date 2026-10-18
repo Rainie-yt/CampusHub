@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include<vector>
 #include"club.h"
 using namespace std;

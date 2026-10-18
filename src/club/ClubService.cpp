@@ -1,9 +1,23 @@
-﻿#include"ClubService.h"
+#include"ClubService.h"
 #include<iostream>
 #include<fstream>
 #include"SportsClub.h"
 #include"AcademicClub.h"
 #include"ArtClub.h"
+#include"../common.h"
+//读取一行并去掉行尾\r，避免Windows/Linux换行符差异导致字段比较失败
+static bool readCleanLine(istream& in, string& line)
+{
+	if (!getline(in, line))
+	{
+		return false;
+	}
+	if (!line.empty() && line.back() == '\r')
+	{
+		line.pop_back();
+	}
+	return true;
+}
 //遍历社团列表，找到指定编号就返回下标
 ClubService::ClubService()
 {
@@ -262,10 +276,10 @@ bool ClubService::loadClubs(const string& fileName)
 	string intro;
 	string leader;
 	string savedStatus;
-	while (getline(file,type ))
+	while (readCleanLine(file, type))
 	{
 		//编号之后必须还有四行资料
-		if (!getline(file,extraInfo)||!getline(file,id)||!getline(file, name) || !getline(file, intro) || !getline(file, leader) || !getline(file, savedStatus))
+		if (!readCleanLine(file,extraInfo)||!readCleanLine(file,id)||!readCleanLine(file, name) || !readCleanLine(file, intro) || !readCleanLine(file, leader) || !readCleanLine(file, savedStatus))
 		{
 			return false;
 		}
@@ -296,15 +310,15 @@ bool ClubService::loadClubs(const string& fileName)
 			return false;
 		}
 		//构造时默认pending，根据文件恢复审核状态
-		if (savedStatus == "approved")
+		if (savedStatus == STATUS_APPROVED)
 		{
 			club->audit(true);
 		}
-		else if (savedStatus == "rejected")
+		else if (savedStatus == STATUS_REJECTED)
 		{
 			club->audit(false);
 		}
-		else if (savedStatus != "pending")
+		else if (savedStatus != STATUS_PENDING)
 		{
 			delete club;
 			return false;
@@ -419,7 +433,7 @@ void ClubService::showApprovedClubs()const
 	bool found = false;
 	for (int i = 0; i < clubs.size(); i++)
 	{
-		if (clubs[i]->getStatus() == "approved")
+		if (clubs[i]->getStatus() == STATUS_APPROVED)
 		{
 			showClubInfo(clubs[i]->getClubId());
 			found = true;
@@ -484,7 +498,7 @@ bool ClubService::isClubApproved(const string& clubId)const
 	{
 		return false;
 	}
-	return clubs[index]->getStatus() == "approved";
+	return clubs[index]->getStatus() == STATUS_APPROVED;
 }
 bool ClubService::isClubLeader(const string& userId, const string& clubId)const
 {
@@ -505,7 +519,7 @@ void ClubService::searchApprovedClubs(const string& keyword)const
 	bool found = false;
 	for (int i = 0; i < clubs.size(); i++)
 	{
-		if (clubs[i]->getStatus() != "approved")
+		if (clubs[i]->getStatus() != STATUS_APPROVED)
 		{
 			continue;
 		}
