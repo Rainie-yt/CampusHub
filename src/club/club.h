@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include  <string>
 #include<vector>
 using namespace std;
@@ -11,6 +11,7 @@ private:
 	string leaderId;
 	string status;//审核状态：pending、approved、rejected
 	vector<string>memberIds;//社团成员的用户编号
+	vector<string>applicantIds;//待审核的申请人编号
 public:
 	//构造函数
 	Club(const string& id, const string& name, const string& intro, const string& leader);
@@ -53,5 +54,16 @@ public:
 	virtual~Club();
 	//获取分类特有资料，普通社团返回空字符串
 	virtual string getExtraInfo()const;
+	//查询用户是否已在待审核名单中
+	bool hasApplicant(const string& userId)const;
+	//添加加入申请
+	//社团未通过、编号非法、已是成员或重复申请时返回false
+	bool addApplicant(const string& userId);
+	//移除待审核申请，不存在时返回false
+	bool removeApplicant(const string& userId);
+	//返回待审核名单的副本
+	vector<string>getApplicantIds()const;
+	//清空待审核名单，供文件读取使用
+	void clearApplicants();
 };
 

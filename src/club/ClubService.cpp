@@ -1,23 +1,9 @@
-#include"ClubService.h"
+﻿#include"ClubService.h"
 #include<iostream>
 #include<fstream>
 #include"SportsClub.h"
 #include"AcademicClub.h"
 #include"ArtClub.h"
-#include"../common.h"
-//读取一行并去掉行尾\r，避免Windows/Linux换行符差异导致字段比较失败
-static bool readCleanLine(istream& in, string& line)
-{
-	if (!getline(in, line))
-	{
-		return false;
-	}
-	if (!line.empty() && line.back() == '\r')
-	{
-		line.pop_back();
-	}
-	return true;
-}
 //遍历社团列表，找到指定编号就返回下标
 ClubService::ClubService()
 {
@@ -276,10 +262,10 @@ bool ClubService::loadClubs(const string& fileName)
 	string intro;
 	string leader;
 	string savedStatus;
-	while (readCleanLine(file, type))
+	while (getline(file,type ))
 	{
 		//编号之后必须还有四行资料
-		if (!readCleanLine(file,extraInfo)||!readCleanLine(file,id)||!readCleanLine(file, name) || !readCleanLine(file, intro) || !readCleanLine(file, leader) || !readCleanLine(file, savedStatus))
+		if (!getline(file,extraInfo)||!getline(file,id)||!getline(file, name) || !getline(file, intro) || !getline(file, leader) || !getline(file, savedStatus))
 		{
 			return false;
 		}
@@ -310,15 +296,15 @@ bool ClubService::loadClubs(const string& fileName)
 			return false;
 		}
 		//构造时默认pending，根据文件恢复审核状态
-		if (savedStatus == STATUS_APPROVED)
+		if (savedStatus == "approved")
 		{
 			club->audit(true);
 		}
-		else if (savedStatus == STATUS_REJECTED)
+		else if (savedStatus == "rejected")
 		{
 			club->audit(false);
 		}
-		else if (savedStatus != STATUS_PENDING)
+		else if (savedStatus != "pending")
 		{
 			delete club;
 			return false;
@@ -433,7 +419,7 @@ void ClubService::showApprovedClubs()const
 	bool found = false;
 	for (int i = 0; i < clubs.size(); i++)
 	{
-		if (clubs[i]->getStatus() == STATUS_APPROVED)
+		if (clubs[i]->getStatus() == "approved")
 		{
 			showClubInfo(clubs[i]->getClubId());
 			found = true;
@@ -498,7 +484,7 @@ bool ClubService::isClubApproved(const string& clubId)const
 	{
 		return false;
 	}
-	return clubs[index]->getStatus() == STATUS_APPROVED;
+	return clubs[index]->getStatus() == "approved";
 }
 bool ClubService::isClubLeader(const string& userId, const string& clubId)const
 {
@@ -519,7 +505,7 @@ void ClubService::searchApprovedClubs(const string& keyword)const
 	bool found = false;
 	for (int i = 0; i < clubs.size(); i++)
 	{
-		if (clubs[i]->getStatus() != STATUS_APPROVED)
+		if (clubs[i]->getStatus() != "approved")
 		{
 			continue;
 		}
@@ -554,4 +540,344 @@ void ClubService::searchApprovedClubs(const string& keyword)const
 	{
 		cout << "没有找到符合条件的社团。" << endl;
 	}
+}
+string ClubService::applyClub(const string& applicantId, const string& type,
+	const string& name, const string& intro, const string& extraInfo)
+{
+	if (applicantId.empty())
+	{
+		return"";
+	}
+	for (int i = 0; i < clubs.size(); i++)
+	{
+		if (clubs[i]->getLeaderId() == applicantId)
+		{
+			string status = clubs[i]->getStatus();
+			if (status == "pending" || status == "approved")
+			{
+				return "";
+			}
+		}
+	}
+	string maxNumber = "0";
+	for (int i = 0; i < clubs.size(); i++)
+	{
+		string id = clubs[i]->getClubId();
+		//只统计C开头，且后面全部是数字编号
+		if (id.length() < 2 || id[0] != 'C')
+		{
+			continue;
+		}
+		bool allDigits = true;
+		string number = "";
+		for (int j = 1; j < id.length(); j++)
+		{
+			if (id[j] < '0' || id[j]>'9')
+			{
+				allDigits = false;
+				break;
+			}
+			//去掉开头的零，方便比较数字大小
+			if (id[j] != '0' || !number.empty())
+			{
+				number += id[j];
+			}
+		}
+		if (allDigits == false)
+		{
+			continue;
+		}
+		if (number.empty())
+		{
+			number = "0";
+		}
+		if (number.length() > maxNumber.length())
+		{
+			maxNumber = number;
+		}
+		else if (number.length() == maxNumber.length() && number > maxNumber)
+		{
+			maxNumber = number;
+		}	
+	}
+	string nextNumber = maxNumber;
+		int position = nextNumber.length() - 1;
+		//末尾是9，就改为0，继续向前进位
+		while (position >= 0 && nextNumber[position] == '9')
+		{
+			nextNumber[position] = '0';
+			position--;
+		}
+		if (position >= 0)
+		{
+			nextNumber[position]++;
+		}
+		else
+		{
+			nextNumber = "1" + nextNumber;
+		}
+		//至少补足三位
+		while (nextNumber.length() < 3)
+		{
+			nextNumber = "0" + nextNumber;
+		}
+		string newId = "C" + nextNumber;
+		Club* club = nullptr;
+		if (type == "体育社团")
+		{
+			club = new SportsClub(newId, name, intro, applicantId, extraInfo);
+		}
+		else if (type == "学术社团")
+		{
+			club = new AcademicClub(newId, name, intro, applicantId, extraInfo);
+		}
+		else if (type == "艺术社团")
+		{
+			club = new ArtClub(newId, name, intro, applicantId, extraInfo);
+		}
+		else if (type == "普通社团")
+		{
+			if (!extraInfo.empty())
+			{
+				return"";
+			}
+			club = new Club(newId, name, intro, applicantId);
+		}
+		else 
+		{
+			return"";
+		}
+		//addClub检查资料，通过clone保存独立副本
+		bool added = addClub(*club);
+		//临时对象使用完后释放
+		delete club;
+		club = nullptr;
+		if (added == false)
+		{
+			return"";
+		}
+		return newId;
+}
+string ClubService::getClubLeaderId(const string& clubId)const
+{
+	int index = findClubIndex(clubId);
+	if (index == -1)
+	{
+		return"";
+	}
+	return clubs[index]->getLeaderId();
+}
+string ClubService::findClubByLeader(const string& userId)const
+{
+	for (int i = 0; i < clubs.size(); i++)
+	{
+		if (clubs[i]->getLeaderId() == userId && clubs[i]->getStatus() == "approved")
+		{
+			return clubs[i]->getClubId();
+		}
+	}
+	return "";
+}
+bool ClubService::applyToJoin(const string& userId, const string& clubId)
+{
+	int index = findClubIndex(clubId);
+	if (index == -1)
+	{
+		return false;
+	}
+	//负责人不需要申请加入自己的社团
+	if (clubs[index]->getLeaderId() == userId)
+	{
+		return false;
+	}
+	//其余检查由Club:addApplicant完成
+	return clubs[index]->addApplicant(userId);
+}
+bool ClubService::approveApplication(const string& operatorId,
+	const string& clubId, const string& userId)
+{
+	int index = findClubIndex(clubId);
+	if (index == -1)
+	{
+		return false;
+	}
+	if (clubs[index]->getLeaderId() != operatorId)
+	{
+		return false;
+	}
+	if (clubs[index]->hasApplicant(userId) == false)
+	{
+		return false;
+	}
+	
+	//成为正式成员失败时，保留原申请
+	if (clubs[index]->addMember(userId) == false)
+	{
+		return false;
+	}
+	clubs[index]->removeApplicant(userId);
+	return true;
+}
+bool ClubService::rejectApplication(const string& operatorId,
+	const string& clubId, const string& userId)
+{
+	int index = findClubIndex(clubId);
+	if (index == -1)
+	{
+		return false;
+	}
+	if (clubs[index]->getLeaderId()!= operatorId)
+	{
+		return false;
+	}
+	return clubs[index]->removeApplicant(userId);
+}
+bool ClubService::showApplications(const string& operatorId,
+	const string& clubId)const
+{
+	int index = findClubIndex(clubId);
+	if (index == -1)
+	{
+		return false;
+	}
+	if (clubs[index]->getLeaderId() != operatorId)
+	{
+		return false;
+	}
+	vector<string>applicants = clubs[index]->getApplicantIds();
+	if (applicants.empty())
+	{
+		cout << "暂无待审核申请。" << endl;
+		return true;
+	}
+	cout << "待审核申请人：" << endl;
+	for (int i = 0; i < applicants.size(); i++)
+	{
+		cout << i + 1 << "." << applicants[i] << endl;
+	}
+	return true;
+}
+void ClubService::showMyApplications(const string& userId)const
+{
+	bool found = false;
+	for (int i = 0; i < clubs.size(); i++)
+	{
+			if (clubs[i]->hasApplicant(userId))
+			{
+				cout << "编号：" << clubs[i]->getClubId()<<endl
+					<< "名称：" << clubs[i]->getClubName()<<endl
+					<< "状态：待审核" << endl;
+				found = true;
+			}
+	}
+	if (found == false)
+	{
+		cout << "暂无待审核的加入申请。" << endl;
+	}
+}
+bool ClubService::saveApplications(const string& fileName)const
+{
+	ofstream file(fileName);
+	if (!file.is_open())
+	{
+		return false;
+	}
+	for (int i = 0; i < clubs.size(); i++)
+	{
+		vector<string>applicants = clubs[i]->getApplicantIds();
+		for (int j = 0; j < applicants.size(); j++)
+		{
+			file << clubs[i]->getClubId() << " " << applicants[j ]<< '\n';
+		}
+	}
+	file.close();
+	if (file.fail())
+	{
+		return false;
+	}
+	return true;
+}
+bool ClubService::loadApplications(const string& fileName)
+{
+	ifstream file(fileName);
+	if (!file.is_open())
+	{
+		return false;
+	}
+	ClubService loadedService;
+	//创建独立副本，只清空副本中的申请名单
+	for (int i = 0; i < clubs.size(); i++)
+	{
+		loadedService.clubs.push_back(clubs[i]->clone());
+		loadedService.clubs[i]->clearApplicants();
+	}
+	string clubId;
+	string userId;
+	while (file >> clubId)
+	{
+		if (!(file >> userId))
+		{
+			return false;
+		}
+		//复用申请入口，检查社团、成员和负责人等规则
+		if (loadedService.applyToJoin(userId, clubId) == false)
+		{
+			return false;
+		}	
+	}
+	if (file.bad() || !file.eof())
+		{
+			return false;
+		}
+	clubs.swap(loadedService.clubs);
+	return true;
+}
+int ClubService::getClubCount()const
+{
+	int count = 0;
+	for (int i = 0; i < clubs.size(); i++)
+	{
+		count++;
+	}
+	return count;
+}
+vector<ClubBrief>ClubService::getApprovedClubBriefs()const
+{
+	vector<ClubBrief>result;
+	for (int i = 0; i < clubs.size(); i++)
+	{
+		if (clubs[i]->getStatus() == "approved")
+		{
+			ClubBrief brief;
+			brief.clubId = clubs[i]->getClubId();
+			brief.clubName = clubs[i]->getClubName();
+			brief.description = clubs[i]->getDescription();
+			brief.type = clubs[i]->getType();
+			brief.extraInfo = clubs[i]->getExtraInfo();
+			brief.leaderId = clubs[i]->getLeaderId();
+			brief.memberCount = clubs[i]->getMemberCount();
+			result.push_back(brief);
+		}
+	}
+	return result;
+}
+vector<string>ClubService::getClubMemberIds(const string& clubId)const
+{
+	int index = findClubIndex(clubId);
+	if (index == -1)
+	{
+		vector<string>emptyList;
+		return emptyList;
+	}
+	return clubs[index]->getMemberIds();
+}
+vector<string>ClubService::getClubApplicantIds(const string& clubId)const
+{
+	int index = findClubIndex(clubId);
+	if (index == -1)
+	{
+		vector<string>emptyList;
+		return emptyList;
+	}
+	return clubs[index]->getApplicantIds();
 }

@@ -1,5 +1,4 @@
-#include"club.h"
-#include"../common.h"
+﻿#include"club.h"
 #include<iostream>
 Club::Club(const string& id, const string& name, const string& intro, const string& leader) 
 {
@@ -7,7 +6,7 @@ Club::Club(const string& id, const string& name, const string& intro, const stri
 	clubName = name;
 	description = intro;
 	leaderId = leader;
-	status = STATUS_PENDING;
+	status = "pending";
 }
 string Club::getClubName()const
 {
@@ -65,17 +64,17 @@ bool Club::changeDescription(const string& newDescription)
 }
 bool Club::audit(bool passed)
 {
-	if (status != STATUS_PENDING)
+	if (status != "pending")
 	{
 		return false;
 	}
 	if (passed)
 	{
-		status = STATUS_APPROVED;
+		status = "approved";
 	}
 	else
 	{
-		status = STATUS_REJECTED;
+		status = "rejected";
 	}
 	return true;
 }
@@ -92,7 +91,7 @@ bool Club::hasMember(const string& userId)const
 }
 bool Club::addMember(const string& userId)
 {
-	if (status != STATUS_APPROVED || userId.empty())
+	if (status != "approved" || userId.empty())
 	{
 		return false;
 	}
@@ -163,4 +162,57 @@ Club::~Club()
 string Club::getExtraInfo()const
 {
 	return"";
+}
+bool Club::hasApplicant(const string& userId)const
+{
+	for (int i = 0; i < applicantIds.size(); i++)
+	{
+		if (applicantIds[i] == userId)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+bool Club::addApplicant(const string& userId)
+{
+	if (status != "approved" || userId.empty())
+	{
+		return false;
+	}
+	//用户编号不能包含空白字符
+	for (int i = 0; i < userId.length(); i++)
+	{
+		if (userId[i] == ' ' || userId[i] == '\t' || userId[i] == '\r' ||
+			userId[i] == '\n' || userId[i] == '\v' || userId[i] == '\f')
+		{
+			return false;
+		}
+	}
+	if (hasMember(userId) || hasApplicant(userId))
+		{
+			return false;
+		}
+		applicantIds.push_back(userId);
+		return true;
+}
+bool Club::removeApplicant(const string& userId)
+{
+	for (int i = 0; i < applicantIds.size(); i++)
+	{
+		if (applicantIds[i] == userId)
+		{
+			applicantIds.erase(applicantIds.begin() + i);
+			return true;
+		}
+	}
+	return false;
+}
+vector<string>Club::getApplicantIds()const
+{
+	return applicantIds;
+}
+void Club::clearApplicants()
+{
+	applicantIds.clear();
 }
