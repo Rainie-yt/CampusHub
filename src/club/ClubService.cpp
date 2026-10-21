@@ -200,6 +200,11 @@ bool ClubService::leaveClub(const string& userId, const string& clubId)
 	{
 		return false;
 	}
+	//负责人不能通过退出社团来解除负责人身份
+	if (clubs[index]->getLeaderId() == userId)
+	{
+		return false;
+	}
 	return clubs[index]->removeMember(userId);
 }
 void ClubService::showClubMembers(const string& clubId)const
@@ -880,4 +885,41 @@ vector<string>ClubService::getClubApplicantIds(const string& clubId)const
 		return emptyList;
 	}
 	return clubs[index]->getApplicantIds();
+}
+void ClubService::searchApprovedClubsByType(const string& type)const
+{
+	if (type.empty())
+	{
+		cout << "请输入社团类型。" << endl;	
+		return;
+	}
+	bool found = false;	
+	for (int i = 0; i < clubs.size(); i++)
+		{
+			if (clubs[i]->getStatus() == "approved"
+				&& clubs[i]->getType() == type)
+			{
+				showClubInfo(clubs[i]->getClubId());
+				found = true;
+			}
+		}
+	if (found == false)
+	{
+		cout << "没有找到该类型的已审核通过社团。" << endl;
+	}
+}
+void ClubService::searchApprovedClubByLeader(const string& leaderId)const
+{
+	if (leaderId.empty())
+	{
+		cout << "请输入负责人编号。" << endl;
+		return;
+	}
+	string clubId = findClubByLeader(leaderId);
+	if (clubId.empty())
+	{
+		cout << "没有找到该负责人负责的已审核通过社团。" << endl;
+		return;
+	}
+	showClubInfo(clubId);
 }

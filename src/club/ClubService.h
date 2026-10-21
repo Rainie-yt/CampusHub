@@ -55,6 +55,12 @@ public:
 	//显示该用户尚未审核的加入申请
 	//userId来自当前登录用户，没有申请时输出提示
 	void showMyApplications(const string& userId)const;
+	//按类型显示已审核通过的社团
+	//类型为空或没有匹配结果时输出提示
+	void searchApprovedClubsByType(const string& type)const;
+	//按负责人编号显示已审核通过的社团
+	//编号为空或没有找到时输出提示
+	void searchApprovedClubByLeader(const string& leaderId)const;
 
 	//-------负责人菜单-------
 	
