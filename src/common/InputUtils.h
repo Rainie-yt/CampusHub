@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <limits>
+#include <string>
 
 using namespace std;
 
@@ -21,6 +22,12 @@ inline int readIntChoice()
     }
 
     return choice;
+}
+
+inline string readLine(){
+    string line;
+    getline(cin>>ws,line);
+    return line;
 }
 
 #endif

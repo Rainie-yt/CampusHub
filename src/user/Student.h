@@ -22,4 +22,8 @@ class Student:public User{
     void showInterests()const;
     vector<string> getInterests()const;
     void recommendClubs()const;
+    void clubMenu();
+    //社团中心：浏览、申请加入、申请成立等
+    void applyCreateClub();
+    //申请成立社团
 };

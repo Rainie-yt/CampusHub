@@ -324,8 +324,8 @@ bool ClubService::loadClubs(const string& fileName)
 			return false;
 		}
 	}
-	//正常到达文件末尾可以结束，其他错误则失败
-	if (file.bad() || !file.eof())
+	//只把真正的读写错误当作失败；MinGW读到文件末尾时eof()可能不为true，不能用它判断
+	if (file.bad())
 	{
 		return false;
 	}
@@ -396,7 +396,8 @@ bool ClubService::loadMembers(const string& fileName)
 			return false;
 		}
 	}
-	if (file.bad() || !file.eof())
+	//同上，不用eof()判断
+	if (file.bad())
 		{
 			return false;
 		}
@@ -416,7 +417,7 @@ void ClubService::showMyClubs(const string& userId)const
 	}
 	if (found == false)
 	{
-		cout << "尚未加入任何社团。" << endl;
+		cout << "您尚未加入任何社团。" << endl;
 	}
 }
 void ClubService::showApprovedClubs()const
@@ -830,7 +831,8 @@ bool ClubService::loadApplications(const string& fileName)
 			return false;
 		}	
 	}
-	if (file.bad() || !file.eof())
+	//同上，不用eof()判断
+	if (file.bad())
 		{
 			return false;
 		}

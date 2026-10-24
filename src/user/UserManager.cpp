@@ -68,23 +68,23 @@ User* UserManager::createUser(const vector<string>& fields){
             等社团模块确定最终的数据结构后，
             再统一处理 clubId 的来源。
         */
-       ClubManager* manager=new ClubManager(id,name,pwd,major,"");
-       manager->setUserManager(this);
-       //读取兴趣标签
-       vector<string> interests=parseInterests(fields[5]);
-       //将兴趣标签加入ClubManager对象，ClubManager继承Student,所以可直接使用addInterest()
-       for(const string& interest:interests){
-        manager->loadInterest(interest);
-       }
-       return manager;
+        ClubManager* manager=new ClubManager(id,name,pwd,major,"");
+        manager->setUserManager(this);
+        //读取兴趣标签
+        vector<string> interests=parseInterests(fields[5]);
+        //将兴趣标签加入ClubManager对象，ClubManager继承Student,所以可直接使用addInterest()
+        for(const string& interest:interests){
+            manager->loadInterest(interest);
+        }
+        return manager;
     }
     if(role=="Admin"){
         /*
-        Admin直接继承User,不需要major和interests
+            Admin直接继承User,不需要major和interests
         */
-       Admin* admin=new Admin(id,name,pwd);
-       admin->setUserManager(this);
-       return admin;
+        Admin* admin=new Admin(id,name,pwd);
+        admin->setUserManager(this);
+        return admin;
     }
     //如果role不是系统支持的角色，则无法创建对应对象
     return nullptr;
@@ -153,7 +153,7 @@ bool UserManager::updateUser(User* user){
     return true;
 }
 /*
-检查用户id是否已经存在，如果存在，则不能重复注册
+    检查用户id是否已经存在，如果存在，则不能重复注册
 */
 bool UserManager::userExists(const string& userId){
     ifstream file(userFile);
@@ -204,7 +204,7 @@ User* UserManager::login(){
     string userId;
     cout<<endl;
     cout<<"========用户登录========"<<endl;
-    cout<<"请输入用户ID：";
+    cout<<"请输入用户Id：";
     cin>>userId;
 
     ifstream file(userFile);
@@ -238,7 +238,7 @@ User* UserManager::login(){
 
     //ID不存在，直接结束，不问密码
     if(!found){
-        cout<<"用户ID不存在！"<<endl;
+        cout<<"用户Id不存在！"<<endl;
         return nullptr;
     }
 
@@ -281,10 +281,10 @@ bool UserManager::registerUser(){
     string interestData;
     cout<<endl;
     cout<<"========用户注册========"<<endl;
-    cout<<"请输入用户ID：";
+    cout<<"请输入用户Id：";
     cin>>userId;
     if(userExists(userId)){
-        cout<<"该用户ID已存在，请重新注册！"<<endl;
+        cout<<"该用户Id已存在，请重新注册！"<<endl;
         return false;
     }
     cout<<"请输入用户名：";
@@ -295,7 +295,7 @@ bool UserManager::registerUser(){
     cin>>major;
     cout<<"请输入兴趣标签（多个兴趣用英文逗号分隔）：";
     cin>>interestData;
-     /*
+    /*
         注册用户默认角色为 Student。
 
         用户不能在注册时自己选择 Admin，
@@ -304,45 +304,124 @@ bool UserManager::registerUser(){
         ClubManager 的角色后续可以由管理员修改，
         或由社团模块进行相关权限设置。
     */
-   string role="Student";
-   /*
+    string role="Student";
+    /*
         以追加模式打开文件。
 
         ios::app 表示：
         新数据添加在文件末尾，
         不会覆盖原有用户数据。
     */
-   ofstream file(userFile,ios::app);
-   if(!file.is_open()){
-    cout<<"无法打开用户数据文件！"<<endl;
-    return false;
-   }
-   //写入格式：userId|userName|password|role|major|interests
-   file<<userId<<"|"<<userName<<"|"<<password<<"|"<<role<<"|"<<major<<"|"<<interestData<<endl;
-   file.close();
-   cout<<"注册成功！"<<endl;
-   return true;
+    ofstream file(userFile,ios::app);
+    if(!file.is_open()){
+        cout<<"无法打开用户数据文件！"<<endl;
+        return false;
+    }
+    //写入格式：userId|userName|password|role|major|interests
+    file<<userId<<"|"<<userName<<"|"<<password<<"|"<<role<<"|"<<major<<"|"<<interestData<<endl;
+    file.close();
+    cout<<"注册成功！"<<endl;
+    return true;
 }
 string UserManager::getUserNameById(const string& userId){
     ifstream file(userFile);
     if(!file.is_open()){
-      return "";
+        return "";
     }
     string line;
     while(getline(file,line)){
-      if(!line.empty()&&line.back()=='\r'){
-        line.pop_back();
-      }
-      if(line.empty()){
-        continue;
-      }
-      vector<string> fields=split(line,'|');
-      if(!fields.empty()&&fields[0]==userId){
-        file.close();
-        return fields[1];
-      }
+        if(!line.empty()&&line.back()=='\r'){
+            line.pop_back();
+        }
+        if(line.empty()){
+            continue;
+        }
+        vector<string> fields=split(line,'|');
+        if(!fields.empty()&&fields[0]==userId){
+            file.close();
+            return fields[1];
+        }
     }
     file.close();
     return "";
     //遍历完都没找到，说明这个ID不存在
-  }
+}
+bool UserManager::changeRole(const string& userId,const string& newRole){
+    ifstream inFile(userFile);
+    if(!inFile.is_open()){
+        cout<<"无法打开用户数据文件！"<<endl;
+        return false;
+    }
+    vector<string> lines;
+    string line;
+    bool found=false;
+    while(getline(inFile,line)){
+        if(!line.empty()&&line.back()=='\r'){
+            line.pop_back();
+        }
+        if(line.empty()){
+            continue;
+        }
+        vector<string> fields=split(line,'|');
+        if(fields.size()>=4&&fields[0]==userId){
+            fields[3]=newRole;
+            //第4个字段是角色，改完重新用|拼回去
+            line=fields[0];
+            for(size_t i=1;i<fields.size();i++){
+                line+="|"+fields[i];
+            }
+            found=true;
+        }
+        lines.push_back(line);
+    }
+    inFile.close();
+    if(!found){
+        cout<<"未找到该用户，修改角色失败！"<<endl;
+        return false;
+    }
+    ofstream outFile(userFile);
+    if(!outFile.is_open()){
+        cout<<"无法写入用户数据文件！"<<endl;
+        return false;
+    }
+    for(const string& l:lines){
+        outFile<<l<<endl;
+    }
+    outFile.close();
+    return true;
+}
+bool UserManager::showUserInfoById(const string& userId){
+    ifstream file(userFile);
+    if(!file.is_open()){
+        cout<<"无法打开用户数据文件！"<<endl;
+        return false;
+    }
+    string line;
+    while(getline(file,line)){
+        if(!line.empty()&&line.back()=='\r'){
+            line.pop_back();
+        }
+        if(line.empty()){
+            continue;
+        }
+        vector<string> fields=split(line,'|');
+        if(fields.size()>=6&&fields[0]==userId){
+            file.close();
+            //不显示密码fields[2]
+            cout<<"用户Id："<<fields[0]<<endl;
+            cout<<"用户名："<<fields[1]<<endl;
+            cout<<"用户角色："<<fields[3]<<endl;
+            cout<<"专业："<<fields[4]<<endl;
+            if(fields[5]=="None"){
+                cout<<"兴趣标签：无"<<endl;
+            }
+            else{
+                cout<<"兴趣标签："<<fields[5]<<endl;
+            }
+            return true;
+        }
+    }
+    file.close();
+    cout<<"未找到该用户！"<<endl;
+    return false;
+}

@@ -1,6 +1,8 @@
 #include<iostream>
 #include"User.h"
 #include"UserManager.h"
+#include"../club/ClubService.h"
+#include"../common.h"
 using namespace std;
 User::User(string id,string name,string pwd,string rol):userId(id),userName(name),password(pwd),role(rol)
 {
@@ -22,6 +24,17 @@ string User::getPassword()const{
 }
 void User::setUserManager(UserManager* um){
     userManager=um;
+}
+void User::setClubService(ClubService* cs){
+    clubService=cs;
+}
+void User::saveClubData(){
+    if(clubService==nullptr){
+        return;
+    }
+    clubService->saveClubs(CLUB_FILE);
+    clubService->saveMembers(MEMBER_FILE);
+    clubService->saveApplications(APPLICATION_FILE);
 }
 //修改密码
 void User::changePassword(string newpwd)

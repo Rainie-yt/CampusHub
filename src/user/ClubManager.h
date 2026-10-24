@@ -15,6 +15,16 @@ class ClubManager:public Student{
     void showClubInfo();
     void modifyClubInfo();
     void manageMembers();
+    void memberListMenu();
+    //成员列表：按序号选择成员
+    void memberActionMenu(const string& memberId);
+    //对选中的成员进行操作：查看信息，移除成员
+    void applicationMenu();
+    //加入申请：按序号选择申请
+    void applicantActionMenu(const string& applicantId);
+    //对选中的申请操作：查看申请人信息、通过、拒绝
+    string nameOf(const string& id);
+    //按ID获取用户名，用于名单显示
     void publishActivity();
     void modifyActivity();
     void deleteActivity();

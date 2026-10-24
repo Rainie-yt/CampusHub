@@ -27,3 +27,8 @@ struct UserBrief {
     string userName;
     string role;
 };
+
+// ------------------ 社团数据文件路径 ------------------
+const string CLUB_FILE="data/clubs.txt";
+const string MEMBER_FILE="data/club_members.txt";
+const string APPLICATION_FILE="data/club_applications.txt";
