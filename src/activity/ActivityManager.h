@@ -1,105 +1,124 @@
-#ifndef ACTIVITYMANAGER_H
-#define ACTIVITYMANAGER_H
+#pragma once
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+#include "Activity.h"
 
-#include <QObject>
-#include <QString>
-#include <QDateTime>
-#include <QVector>
-
-// 社团活动实体
-struct Activity
-{
-    int id;                 // 活动编号，唯一标识
-    QString name;           // 活动名称
-    QString description;    // 活动简介
-    QString location;       // 活动地点
-    QDateTime startTime;    // 开始时间
-    QDateTime endTime;      // 结束时间
-    QString sponsor;        // 主办方/负责人
-    int maxMember;          // 最大报名人数
-    QVector<int> signUpList;// 报名成员id列表
-    bool isPublished;       // 是否发布
-
-    Activity() : id(-1), maxMember(0), isPublished(false) {}
+// 报名结果。比 bool 多几种情况，菜单层可以按结果给出不同提示。
+enum class JoinResult {
+    SUCCESS,          // 报名成功
+    WAITLISTED,       // 活动已满，已加入候补
+    CONFLICT,         // 与已报名/候补的活动时间冲突
+    ALREADY_JOINED,   // 已报名
+    ALREADY_WAITING,  // 已在候补名单
+    NOT_FOUND,        // 活动不存在
+    NOT_APPROVED,     // 活动未通过审核
+    ENDED             // 活动已结束
 };
 
-class ActivityManager : public QObject
-{
-    Q_OBJECT
+std::string joinResultText(JoinResult r);   // 结果的中文说明
+
+class ActivityManager {
 public:
-    explicit ActivityManager(QObject *parent = nullptr);
+    explicit ActivityManager(const std::string& actFile = "data/activities.txt",
+                             const std::string& regFile = "data/registrations.txt");
 
-    /**
-     * @brief 新增活动，id由管理器自动分配
-     * @param act 活动信息，入参的id会被忽略
-     * @return 返回分配好的活动id
-     */
-    int addActivity(const Activity& act);
+    // ---------- 文件 ----------
+    // 读取两个文件。文件不存在视为空；格式有误的行会被跳过并在 cerr 提示，
+    // 此时返回 false（其余正常的数据仍会被加载）。
+    bool load();
+    bool save() const;
+    void setAutoSave(bool on) { autoSave = on; }   // 默认开启：每次修改后自动保存
 
-    /**
-     * @brief 根据id删除活动
-     * @param actId 目标活动id
-     * @return true删除成功，false不存在该id
-     */
-    bool removeActivity(int actId);
+    // 测试用：固定“当前时间”（格式同活动时间）。传空串恢复为系统时间。
+    void setClock(const std::string& now) { fixedNow = now; }
+    std::string now() const;
 
-    /**
-     * @brief 更新活动信息
-     * @param actId 要修改的活动id
-     * @param newInfo 新信息，newInfo内的id字段会被强制覆盖为actId
-     * @return true修改成功，false不存在该id
-     */
-    bool updateActivity(int actId, const Activity& newInfo);
+    // ---------- 活动管理（社团负责人 / 管理员）----------
+    // 添加活动，成功返回新分配的活动编号，对象不合法返回 ""。
+    std::string addActivity(std::unique_ptr<Activity> act);
+    // 交互式发布活动（社团负责人调用），新活动状态为 pending，等待管理员审核。
+    bool publishActivity(const std::string& clubId);
+    // 交互式修改活动。接口表只传 activityId；operatorClubId 可选，非空时必须与
+    // 活动所属社团一致（额外的权限保护），留空则不检查。
+    // 已有人报名/候补时不允许修改时间，避免破坏已通过的冲突检测。
+    bool modifyActivity(const std::string& activityId, const std::string& operatorClubId = "");
+    // 社团负责人删除活动。operatorClubId 的规则同上。
+    bool deleteActivity(const std::string& activityId, const std::string& operatorClubId = "");
+    // 管理员删除违规活动（不检查社团）。
+    bool removeActivity(const std::string& activityId);
+    // 管理员审核：approve=true 通过，false 驳回。
+    bool auditActivity(const std::string& activityId, bool approve = true);
 
-    /**
-     * @brief 根据id查询单个活动
-     * @param actId 活动id
-     * @return 找不到返回id=-1的空Activity，调用方需要判断id是否有效
-     */
-    Activity getActivityById(int actId) const;
+    // ---------- 查询 ----------
+    Activity* findActivity(const std::string& activityId);
+    const Activity* findActivity(const std::string& activityId) const;
+    std::vector<const Activity*> getAllActivities() const;
+    std::vector<const Activity*> getApprovedActivities() const;
+    std::vector<const Activity*> getPendingActivities() const;
+    std::vector<const Activity*> getActivitiesByClub(const std::string& clubId) const;
 
-    /**
-     * @brief 获取全部活动（包含未发布）
-     */
-    QVector<Activity> getAllActivities() const;
+    void showApprovedActivities() const;               // 学生浏览
+    void showPendingActivities() const;                // 管理员审核列表
+    void showActivitiesByClub(const std::string& clubId) const;
+    void showActivityDetail(const std::string& activityId) const;
 
-    /**
-     * @brief 只获取已发布的活动
-     */
-    QVector<Activity> getPublishedActivities() const;
+    // ---------- 报名（学生）----------
+    // 接口表约定：bool joinActivity(userId, activityId)。
+    // 函数内部会自己打印结果提示（成功 / 已加入候补 / 时间冲突 / 已报名 ...），
+    // 调用方不需要再重复提示。返回 true 表示已进入报名名单或候补名单。
+    bool joinActivity(const std::string& userId, const std::string& activityId);
+    // 不打印的底层版本，返回详细结果（测试或界面层想自己处理时使用）。
+    JoinResult tryJoin(const std::string& userId, const std::string& activityId);
+    // 取消报名或退出候补。若取消的是正式名额，队首候补自动递补，
+    // 递补者的 userId 通过 promotedUser 带回（没有则为空串）。已结束的活动不能取消。
+    bool cancelActivity(const std::string& userId, const std::string& activityId,
+                        std::string* promotedUser = nullptr);
+    void showMyActivities(const std::string& userId) const;
 
-    /**
-     * @brief 成员报名活动
-     * @param actId 活动id
-     * @param memberId 成员id
-     * @return 成功true；已报名 / 人数已满 / 活动不存在 返回false
-     */
-    bool signUp(int actId, int memberId);
+    // ---------- 报名管理（社团负责人）----------
+    void showRegistration(const std::string& activityId) const;
+    // 交互式移除报名者（会触发候补递补）。
+    void manageRegistration(const std::string& activityId, const std::string& operatorClubId = "");
 
-    /**
-     * @brief 取消报名
-     * @return true取消成功；未报名 / 活动不存在 返回false
-     */
-    bool cancelSignUp(int actId, int memberId);
+    // ---------- 智能服务 ----------
+    // 时间冲突检测：返回与 target 时间重叠的、该用户已报名/候补的活动；没有则返回 nullptr。
+    const Activity* findConflict(const std::string& userId, const Activity& target) const;
 
-    /**
-     * @brief 查询成员是否已经报名该活动
-     */
-    bool hasSignedUp(int actId, int memberId) const;
+    // 兴趣匹配度 = |交集| / |并集|（Jaccard），范围 0~1。
+    static double matchScore(const std::vector<std::string>& interests,
+                             const std::vector<std::string>& tags);
+    // 推荐：只考虑已通过、未结束、该用户尚未报名/候补、匹配度 > 0 的活动，
+    // 按匹配度降序（相同则开始时间早的在前）。userId 可为空。
+    std::vector<std::pair<const Activity*, double> >
+    recommend(const std::vector<std::string>& interests, const std::string& userId = "") const;
+    void recommendActivity(const std::vector<std::string>& interests,
+                           const std::string& userId = "") const;
 
-    /**
-     * @brief 清空所有活动（仅测试使用）
-     */
-    void clearAll();
+    // 积分：该用户已报名、已通过审核、且已结束的活动的 calcPoints 之和。
+    // （目前以“报名成功且活动已结束”视为参加，没有签到环节。）
+    int getUserPoints(const std::string& userId) const;
 
-signals:
-    // 活动数据发生变更，通知UI刷新界面
-    void activityDataChanged();
+    // ---------- 提供给社团模块（B）的统计接口 ----------
+    int getActivityCount(const std::string& clubId) const;      // 已通过的活动数
+    int getParticipantCount(const std::string& clubId) const;   // 这些活动的报名总人次
+
+    // 工厂：根据类型名创建对应子类，类型未知返回 nullptr。
+    static std::unique_ptr<Activity> makeActivity(
+        const std::string& type, const std::string& aid, const std::string& cid,
+        const std::string& name, const std::vector<std::string>& tags,
+        const std::string& st, const std::string& et, const std::string& loc,
+        int maxp, const std::string& status, const std::string& extra);
 
 private:
-    QVector<Activity> activityList_;
-    int nextId_;
+    std::vector<std::unique_ptr<Activity> > activities;
+    int nextId;
+    std::string activityFile;
+    std::string regFile;
+    bool autoSave;
+    std::string fixedNow;
+
+    std::string generateId();
+    void autoSaveIfNeeded() const;
 };
-
-#endif // ACTIVITYMANAGER_H
-
