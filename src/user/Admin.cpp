@@ -56,7 +56,7 @@ void Admin::userManageMenu(){
         cout<<"========用户管理========"<<endl;
         cout<<"1.查看所有用户"<<endl;
         cout<<"2.删除用户"<<endl;
-        cout<<"3.冻结用户账号"<<endl;
+        cout<<"3.冻结/解冻用户账号"<<endl;
         cout<<"4.修改用户角色"<<endl;
         cout<<"0.返回上一级菜单"<<endl;
         cout<<endl;
@@ -88,16 +88,163 @@ void Admin::userManageMenu(){
     }
 }
 void Admin::showAllUsers(){
-    //用户模块内部功能，调用UserManager.showUsers(),显示用户ID、用户名、用户角色
+    if(userManager!=nullptr){
+        userManager->showAllUsers();
+    }
+}
+//先显示用户列表，再输入要操作的用户Id
+//不能操作自己，找不到时返回空字符串
+string Admin::selectUser(const string& prompt){
+    if(userManager==nullptr){
+        return "";
+    }
+    userManager->showAllUsers();
+    cout<<endl;
+    cout<<prompt;
+    string targetId;
+    cin>>targetId;
+    if(targetId==userId){
+        cout<<"不能对自己的账号进行此操作！"<<endl;
+        return "";
+    }
+    if(userManager->getUserRole(targetId).empty()){
+        cout<<"未找到该用户！"<<endl;
+        return "";
+    }
+    return targetId;
 }
 void Admin::deleteUser(){
-    //用户模块内部功能，调用UserManager.deleteUser(userId)，根据用户ID删除账号
+    string targetId=selectUser("请输入要删除的用户Id：");
+    if(targetId.empty()){
+        return;
+    }
+    string role=userManager->getUserRole(targetId);
+    if(role==ROLE_ADMIN){
+        cout<<"不能删除管理员账号！"<<endl;
+        return;
+    }
+    //负责人要先删社团，否则社团会没有负责人
+    if(role==ROLE_CLUB_MANAGER||(clubService!=nullptr&&!clubService->findClubByLeader(targetId).empty())){
+        cout<<"该用户是社团负责人，请先删除其社团后再删除用户！"<<endl;
+        return;
+    }
+    cout<<"确认删除 "<<targetId<<" "<<userManager->getUserNameById(targetId)<<" 吗？1.确认  0.取消"<<endl;
+    cout<<"请选择：";
+    if(readIntChoice()!=1){
+        cout<<"已取消。"<<endl;
+        return;
+    }
+    if(!userManager->deleteUser(targetId)){
+        cout<<"删除失败！"<<endl;
+        return;
+    }
+    //把他从所有社团的成员名单和加入申请里移除，分开计数
+    int leftClubs=0;
+    int cancelledApps=0;
+    if(clubService!=nullptr){
+        for(const ClubBrief& club:clubService->getApprovedClubBriefs()){
+            if(clubService->leaveClub(targetId,club.clubId)){
+                leftClubs++;
+            }
+            //拒绝申请要以负责人身份操作
+            if(clubService->rejectApplication(club.leaderId,club.clubId,targetId)){
+                cancelledApps++;
+            }
+        }
+        if(leftClubs>0||cancelledApps>0){
+            saveClubData();
+        }
+    }
+    cout<<"用户已删除。"<<endl;
+    if(leftClubs>0){
+        cout<<"已将其移出"<<leftClubs<<"个社团。"<<endl;
+    }
+    if(cancelledApps>0){
+        cout<<"已撤销其"<<cancelledApps<<"条加入申请。"<<endl;
+    }
 }
 void Admin::freezeUser(){
-    //用户和模块内部功能，调用UserManager.freezeUser(userId),修改用户状态：正常、冻结
+    string targetId=selectUser("请输入要冻结或解冻的用户Id：");
+    if(targetId.empty()){
+        return;
+    }
+    string name=userManager->getUserNameById(targetId);
+    //已冻结就问是否解冻，否则问是否冻结
+    bool frozen=(userManager->getUserStatus(targetId)==USER_FROZEN);
+    //管理员不能被冻结，单已冻结的仍可以解冻
+    if(!frozen&&userManager->getUserRole(targetId)==ROLE_ADMIN){
+        cout<<"不能冻结管理员账号！"<<endl;
+        return;
+    }
+    if(frozen){
+        cout<<targetId<<" "<<name<<" 目前已冻结，是否解冻？1.解冻  0.取消"<<endl;
+    }
+    else{
+        cout<<"确认冻结 "<<targetId<<" "<<name<<" 吗？冻结后该用户无法登录。1.冻结  0.取消"<<endl;
+    }
+    cout<<"请选择：";
+    if(readIntChoice()!=1){
+        cout<<"已取消。"<<endl;
+        return;
+    }
+    string newStatus=frozen?USER_NORMAL:USER_FROZEN;
+    if(!userManager->setUserStatus(targetId,newStatus)){
+        cout<<"操作失败！"<<endl;
+        return;
+    }
+    cout<<(frozen?"已解冻该账号。":"已冻结该账号。")<<endl;
 }
 void Admin::modifyUserRole(){
-    //用户模块内部功能，调用UserManager.changeRole()，修改角色
+    string targetId=selectUser("请输入要修改角色的用户Id：");
+    if(targetId.empty()){
+        return;
+    }
+    string oldRole=userManager->getUserRole(targetId);
+    cout<<"1.普通学生  2.社团负责人  3.系统管理员  0.取消"<<endl;
+    string newRole;
+    //输错就重新选，选0取消
+    while(true){
+        cout<<"请选择新角色：";
+        int choice=readIntChoice();
+        if(choice==0){
+            cout<<"已取消。"<<endl;
+            return;
+        }
+        if(choice==1){
+            newRole=ROLE_STUDENT;
+            break;
+        }
+        if(choice==2){
+            newRole=ROLE_CLUB_MANAGER;
+            break;
+        }
+        if(choice==3){
+            newRole=ROLE_ADMIN;
+            break;
+        }
+        cout<<"无效的选择，请重新输入！"<<endl;
+    }
+    if(newRole==oldRole){
+        cout<<"该用户已经是这个角色。"<<endl;
+        return;
+    }
+    string clubId;
+    if(clubService!=nullptr){
+        clubId=clubService->findClubByLeader(targetId);
+    }
+    //负责着已跳过的社团，不能改成别的角色
+    if(!clubId.empty()&&newRole!=ROLE_CLUB_MANAGER){
+        cout<<"该用户是社团"<<clubId<<"的负责人，请先删除该社团再修改角色！"<<endl;
+        return;
+    }
+    //没有已通过的社团，设成负责人也无社团可管
+    if(clubId.empty()&&newRole==ROLE_CLUB_MANAGER){
+        cout<<"该用户没有已通过审核的社团，不能设为社团负责人！"<<endl;
+        return;
+    }
+    if(userManager->changeRole(targetId,newRole)){
+        cout<<"角色修改成功（该用户重新登录后生效）。"<<endl;
+    }
 }
 //社团管理：需要调用社团模块
 void Admin::clubManageMenu(){
@@ -187,9 +334,17 @@ void Admin::deleteClub()
     cout<<endl;
     cout<<"请输入要删除的社团编号：";
     cin>>clubId;
+    //删除前先记下负责人，删掉之后就查不到了
+    string leaderId=clubService->getClubLeaderId(clubId);
     if(clubService->deleteClub(clubId)){
         saveClubData();
-        cout<<"社团已删除。"<<endl;
+        cout<<"该社团已删除。"<<endl;
+        //原来是负责人、且没有别的已通过社团，就改回普通学生
+        if(userManager!=nullptr&&userManager->getUserRole(leaderId)==ROLE_CLUB_MANAGER&&clubService->findClubByLeader(leaderId).empty()){
+            if(userManager->changeRole(leaderId,ROLE_STUDENT)){
+                cout<<leaderId<<"已改回普通学生（重新登录后生效）。"<<endl;
+            }
+        }
     }
     else{
         cout<<"删除失败：社团不存在，或社团还有成员。"<<endl;
@@ -284,8 +439,9 @@ void Admin::systemStatisticsMenu()
         switch (choice)
         {
             case 1:
-                // 对接用户模块
-                // 获取系统用户数量
+                if(userManager!=nullptr){
+                    userManager->showUserStatistics();
+                }
                 break;
 
             case 2:
@@ -297,6 +453,7 @@ void Admin::systemStatisticsMenu()
             case 3:
                 // 对接活动模块
                 // 获取系统活动数量
+                cout<<"该功能等待活动模块完成。"<<endl;
                 break;
 
             case 0:

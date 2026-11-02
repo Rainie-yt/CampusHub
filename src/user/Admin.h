@@ -20,6 +20,8 @@ class Admin:public User{
     void deleteUser();
     void freezeUser();
     void modifyUserRole();
+    string selectUser(const string& prompt);
+    //显示用户列表并输入用户Id，不能选自己，无效时返回空字符串
     //社团管理
     void auditClub();
     void deleteClub();

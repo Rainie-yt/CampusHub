@@ -26,4 +26,13 @@ class Student:public User{
     //社团中心：浏览、申请加入、申请成立等
     void applyCreateClub();
     //申请成立社团
+    void browseClubs()const;
+    //浏览：每个社团一行
+    void searchClubs(const string& keyword)const;
+    //按名称关键词搜索，结果格式同浏览
+    void showClubDetail(const string& clubId)const;
+    //详情：完整资料+负责人姓名+成员人数
+    protected:
+    void printClubDetail(const string& clubId)const;
+    //只输出社团资料，不带标题
 };

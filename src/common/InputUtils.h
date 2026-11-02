@@ -30,4 +30,25 @@ inline string readLine(){
     return line;
 }
 
+//读取要写进users.txt的内容，不合法就重新输入
+//任何内容都不能有|；allowComma、allowSpace为false时也不能有逗号、空格
+inline string readField(const  string& prompt,bool allowComma=false,bool allowSppace=false){
+    while(true){
+        cout<<prompt;
+        string s=readLine();
+        if(s.find('|')!=string::npos){
+            cout<<"不能包含字符 |，请重新输入！"<<endl;
+        }
+        else if(!allowComma&&s.find(',')!=string::npos){
+            cout<<"不能包含逗号，请重新输入！"<<endl;
+        }
+        else if(!allowComma&&s.find(' ')!=string::npos){
+            cout<<"不能包含空格，请重新输入！"<<endl;
+        }
+        else{
+            return s;
+        }
+    }
+}
+
 #endif

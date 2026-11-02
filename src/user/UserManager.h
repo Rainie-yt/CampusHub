@@ -5,6 +5,10 @@
 #include<vector>
 #include"User.h"
 using namespace std;
+//账号状态，存在users.txt每行第7个字段
+//旧数据没有这一栏时按normal处理
+const string USER_NORMAL="normal";
+const string USER_FROZEN="frozen";
 /*
     UserManager:用户管理类
     主要负责：
@@ -38,6 +42,19 @@ class UserManager{
     //按ID查用户名，找不到返回空字符串
     bool showUserInfoById(const string& userId);
     //按ID显示用户完整信息（不含密码），找不到返回false
+    //-------管理员用户管理-------
+    void showAllUsers();
+    //每个用户一行：用户Id、用户名、角色、状态
+    void showUserStatistics();
+    //用户总数及各角色、冻结账号数量
+    string getUserRole(const string& userId);
+    //查角色，找不到返回空字符串
+    string getUserStatus(const string& userId);
+    //查账号状态，找不到返回空字符串
+    bool setUserStatus(const string& userId,const string& status);
+    //冻结或解冻，写回文件
+    bool deleteUser(const string& userId);
+    //从users.txt删除该用户那一行，社团关系由调用者先处理
     private:
     //用户数据文件路径
     string userFile;
@@ -62,5 +79,13 @@ class UserManager{
         返回User*，利用多态保存不同的派生类对象
     */
     bool userExists(const string& userId);
+    bool readLines(vector<string>& lines);
+    //读出users.txt所有非空行
+    bool writeLines(const vector<string>& lines);
+    //整体覆盖写回users.txt
+    string statusOf(const vector<string>& fields);
+    //取一行的状态，没有第7个字段时返回normal
+    string roleName(const string& role);
+    //角色转成中文显示
 };
 #endif

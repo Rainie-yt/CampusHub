@@ -40,6 +40,7 @@ void ClubManager::showMenu(){
             }
             case 3:{
                 //活动模块
+                cout<<"该功能等待活动模块完成。"<<endl;
                 break;
             }
             case 4:{
@@ -75,6 +76,7 @@ void ClubManager::clubManageMenu(){
     }
     while(true)
     {
+        cout<<endl;
         cout<<"========社团管理========"<<endl;
         cout<<"1.查看我的社团"<<endl;
         cout<<"2.修改社团信息"<<endl;
@@ -101,7 +103,7 @@ void ClubManager::clubManageMenu(){
             case 0:
                 return;
             default:
-                cout<<"输入错误！"<<endl;
+                cout<<"无效的选择，请重新输入！"<<endl;
         }
     }
 
@@ -110,6 +112,7 @@ void ClubManager::activityManageMenu()
 {
     while(true)
     {
+        cout<<endl;
         cout<<"========活动管理========"<<endl;
         cout<<"1.发布活动"<<endl;
         cout<<"2.修改活动"<<endl;
@@ -151,7 +154,7 @@ void ClubManager::activityManageMenu()
 void ClubManager::showClubInfo(){
     cout<<endl;
     cout<<"========我的社团========"<<endl;
-    clubService->showClubInfo(clubId);
+    printClubDetail(clubId);
 }
 void ClubManager::modifyClubInfo(){
     cout<<"请输入新的社团名称：";
@@ -330,16 +333,21 @@ string ClubManager::nameOf(const string& id){
 }
 void ClubManager::publishActivity(){
     //对接活动模块，传递clubId创建活动名称、时间、地点、描述
+    cout<<"该功能等待活动模块完成。"<<endl;
 }
 void ClubManager::modifyActivity(){
     //对接活动模块，根据clubId查询本社团活动，选择具体的activityId后修改活动信息
+    cout<<"该功能等待活动模块完成。"<<endl;
 }
 void ClubManager::deleteActivity(){
     //对接活动模块，根据clubId查询本社团活动，选择具体activityId后删除活动
+    cout<<"该功能等待活动模块完成。"<<endl;
 }
 void ClubManager::showActivityRegistration(){
     //对接活动模块，根据activityId查询报名学生列表
+    cout<<"该功能等待活动模块完成。"<<endl;
 }
 void ClubManager::manageRegistration(){
     //对接活动模块，实现审核报名，通过、拒绝申请、查看报名名单
+    cout<<"该功能等待活动模块完成。"<<endl;
 }

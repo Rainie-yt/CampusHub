@@ -2,6 +2,7 @@
 #include"Student.h"
 #include"ClubManager.h"
 #include"Admin.h"
+#include"../common/InputUtils.h"
 #include<iostream>
 #include<fstream>
 #include<string>
@@ -129,6 +130,10 @@ bool UserManager::updateUser(User* user){
             else{
                 newLine+="None|None";
             }
+            for(size_t i=6;i<fields.size();i++){
+                newLine+="|"+fields[i];
+            }
+            //保留第7个字段（账号状态），否则改密码会把冻结状态丢掉
             lines.push_back(newLine);
             found=true;
         }
@@ -252,6 +257,12 @@ User* UserManager::login(){
         return nullptr;
     }
 
+    //密码对了才提示冻结，避免别人借此试探账号状态
+    if(statusOf(fields)==USER_FROZEN){
+        cout<<"该账号已被冻结，请联系管理员！"<<endl;
+        return nullptr;
+    }
+
     cout<<"登录成功！"<<endl;
     return createUser(fields);
 }
@@ -281,20 +292,30 @@ bool UserManager::registerUser(){
     string interestData;
     cout<<endl;
     cout<<"========用户注册========"<<endl;
-    cout<<"请输入用户Id：";
-    cin>>userId;
+    userId=readField("请输入用户Id：");
     if(userExists(userId)){
         cout<<"该用户Id已存在，请重新注册！"<<endl;
         return false;
     }
-    cout<<"请输入用户名：";
-    cin>>userName;
-    cout<<"请输入密码：";
-    cin>>password;
-    cout<<"请输入专业：";
-    cin>>major;
-    cout<<"请输入兴趣标签（多个兴趣用英文逗号分隔）：";
-    cin>>interestData;
+    userName=readField("请输入用户名：",true,true);
+    //用户名和专业允许空格、逗号，只拦|
+    password=readField("请输入密码：");
+    major=readField("请输入专业：",true,true);
+    while(true){
+        interestData=readField("请输入兴趣标签（多个兴趣用英文逗号分隔）：",true,false);
+        //把中文逗号统一换成英文逗号，用户两种都能用
+        size_t pos;
+        while((pos=interestData.find("，"))!=string::npos){
+            interestData.replace(pos,3,",");
+            //中文逗号在UTF-8里占3个子节，所以替换长度是3
+        }
+    //逗号是分隔符，但不能出现在开头、结尾或连着两个
+    if(interestData.front()==','||interestData.back()==','||interestData.find(",,")!=string::npos){
+        cout<<"兴趣标签不能为空，请重新输入！"<<endl;
+        continue;
+    }
+    break;
+    }
     /*
         注册用户默认角色为 Student。
 
@@ -318,7 +339,7 @@ bool UserManager::registerUser(){
         return false;
     }
     //写入格式：userId|userName|password|role|major|interests
-    file<<userId<<"|"<<userName<<"|"<<password<<"|"<<role<<"|"<<major<<"|"<<interestData<<endl;
+    file<<userId<<"|"<<userName<<"|"<<password<<"|"<<role<<"|"<<major<<"|"<<interestData<<"|"<<USER_NORMAL<<endl;
     file.close();
     cout<<"注册成功！"<<endl;
     return true;
@@ -424,4 +445,179 @@ bool UserManager::showUserInfoById(const string& userId){
     file.close();
     cout<<"未找到该用户！"<<endl;
     return false;
+}
+bool UserManager::readLines(vector<string>& lines){
+    ifstream file(userFile);
+    if(!file.is_open()){
+        cout<<"无法打开用户数据文件！"<<endl;
+        return false;
+    }
+    string line;
+    while(getline(file,line)){
+        if(!line.empty()&&line.back()=='\r'){
+            line.pop_back();
+        }
+        if(!line.empty()){
+            lines.push_back(line);
+        }
+    }
+    file.close();
+    return true;
+}
+bool UserManager::writeLines(const vector<string>& lines){
+    ofstream file(userFile);
+    if(!file.is_open()){
+        cout<<"无法写入用户数据文件！"<<endl;
+        return false;
+    }
+    for(const string& l:lines){
+        file<<l<<endl;
+    }
+    file.close();
+    return true;
+}
+string UserManager::statusOf(const vector<string>& fields){
+    if(fields.size()>=7&&fields[6]==USER_FROZEN){
+        return USER_FROZEN;
+    }
+    return USER_NORMAL;
+}
+string UserManager::roleName(const string& role){
+    if(role=="Student"){
+        return "普通学生";
+    }
+    if(role=="ClubManager"){
+        return "社团负责人";
+    }
+    if(role=="Admin"){
+        return "系统管理员";
+    }
+    return role;
+}
+void UserManager::showAllUsers(){
+    vector<string> lines;
+    if(!readLines(lines)){
+        return;
+    }
+    cout<<endl;
+    cout<<"========用户列表========"<<endl;
+    int count=0;
+    for(const string& line:lines){
+        vector<string> fields=split(line,'|');
+        if(fields.size()<6){
+            continue;
+        }
+        cout<<fields[0]<<" "<<fields[1]<<" "<<roleName(fields[3]);
+        if(statusOf(fields)==USER_FROZEN){
+            cout<<" 已冻结";
+        }
+        cout<<endl;
+        count++;
+    }
+    cout<<"共"<<count<<"个用户"<<endl;
+}
+void UserManager::showUserStatistics(){
+    vector<string> lines;
+    if(!readLines(lines)){
+        return;
+    }
+    int total=0,students=0,managers=0,admins=0,frozen=0;
+    for(const string& line:lines){
+        vector<string> fields=split(line,'|');
+        if(fields.size()<6){
+            continue;
+        }
+        total++;
+        if(fields[3]=="Student"){
+            students++;
+        }
+        else if(fields[3]=="ClubManager"){
+            managers++;
+        }
+        else if(fields[3]=="Admin"){
+            admins++;
+        }
+        if(statusOf(fields)==USER_FROZEN){
+            frozen++;
+        }
+    }
+    cout<<"用户总数："<<total<<endl;
+    cout<<"普通学生："<<students<<endl;
+    cout<<"社团负责人："<<managers<<endl;
+    cout<<"系统管理员："<<admins<<endl;
+    cout<<"已冻结账号："<<frozen<<endl;
+}
+string UserManager::getUserRole(const string& userId){
+    vector<string> lines;
+    if(!readLines(lines)){
+        return "";
+    }
+    for(const string& line:lines){
+        vector<string> fields=split(line,'|');
+        if(fields.size()>=6&&fields[0]==userId){
+            return fields[3];
+        }
+    }
+    return "";
+}
+string UserManager::getUserStatus(const string& userId){
+    vector<string> lines;
+    if(!readLines(lines)){
+        return "";
+    }
+    for(const string& line:lines){
+        vector<string> fields=split(line,'|');
+        if(fields.size()>=6&&fields[0]==userId){
+            return statusOf(fields);
+        }
+    }
+    return "";
+}
+bool UserManager::setUserStatus(const string& userId,const string& status){
+    vector<string> lines;
+    if(!readLines(lines)){
+        return false;
+    }
+    bool found=false;
+    for(string& line:lines){
+        vector<string> fields=split(line,'|');
+        if(fields.size()>=6&&fields[0]==userId){
+            //旧数据只有6个字段，补到7再改
+            while(fields.size()<7){
+                fields.push_back(USER_NORMAL);
+            }
+            fields[6]=status;
+            line=fields[0];
+            for(size_t i=1;i<fields.size();i++){
+                line+="|"+fields[i];
+            }
+            found=true;
+            break;
+        }
+    }
+    if(!found){
+        return false;
+    }
+    return writeLines(lines);
+}
+bool UserManager::deleteUser(const string& userId){
+    vector<string> lines;
+    if(!readLines(lines)){
+        return false;
+    }
+    vector<string> kept;
+    bool found=false;
+    for(const string& line:lines){
+        vector<string> fields=split(line,'|');
+        if(!fields.empty()&&fields[0]==userId){
+            found=true;
+            //跳过这一行，相当于删除
+            continue;
+        }
+        kept.push_back(line);
+    }
+    if(!found){
+        return false;
+    }
+    return writeLines(kept);
 }

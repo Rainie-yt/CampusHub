@@ -4,6 +4,10 @@
 #include"../common/InputUtils.h"
 #include"UserManager.h"
 #include"../club/ClubService.h"
+//社团列表的一行：编号、名称、类型
+static void printClubRow(const ClubBrief& club){
+    cout<<club.clubId<<"  "<<club.clubName<<"（"<<club.type<<"）"<<endl;
+}
 Student::Student(string id,string name,string pwd,string maj):User(id,name,pwd,"Student"),major(maj)
 {
 }
@@ -36,6 +40,7 @@ void Student::showMenu(){
                 break;
             case 3:
                 //活动报名，属于活动模块
+                cout<<"该功能等待活动模块完成。"<<endl;
                 break;
             case 4:
                 showMyActivityMenu();
@@ -73,8 +78,7 @@ void Student::showInfoMenu(){
             case 1:
                 {
                     string newpwd;
-                    cout<<"请输入新密码：";
-                    cin>>newpwd;
+                    newpwd=readField("请输入新密码：");
                     changePassword(newpwd);
                 }
                 break;
@@ -107,8 +111,8 @@ void Student::modifyInterest(){
             case 1:
                 {
                     string newInterest;
-                    cout<<"请输入要添加的兴趣标签：";
-                    cin>>newInterest;
+                    newInterest=readField("请输入要添加的兴趣标签：");
+                    //单个标签，逗号和空格都不允许
                     addInterest(newInterest);
                 }
                 break;
@@ -179,6 +183,7 @@ vector<string> Student::getInterests()const{
 void Student::showMyActivityMenu()
 {
     // TODO：后续对接活动模块
+    cout<<"该功能等待活动模块完成。"<<endl;
 }
 void Student::recommendClubs()const{
     if(clubService==nullptr){
@@ -196,7 +201,7 @@ void Student::recommendClubs()const{
         string text=club.clubName+" "+club.description+" "+club.extraInfo;
         for(const string& interest:interests){
             if(text.find(interest)!=string::npos){
-                cout<<"推荐社团："<<club.clubName<<"（编号："<<club.clubId<<"，匹配兴趣："<<interest<<"）"<<endl;
+                cout<<"推荐社团："<<club.clubId<<"  "<<club.clubName<<endl;
                 found=true;
                 break;
             }
@@ -228,19 +233,19 @@ void Student::clubMenu(){
         int choice=readIntChoice();
         switch(choice){
             case 1:
-                clubService->showApprovedClubs();
+                browseClubs();
                 break;
             case 2:{
                 cout<<"请输入社团名称关键词：";
                 string keyword=readLine();
-                clubService->searchApprovedClubs(keyword);
+                searchClubs(keyword);
                 break;
             }
             case 3:{
                 string clubId;
                 cout<<"请输入社团编号：";
                 cin>>clubId;
-                clubService->showClubInfo(clubId);
+                showClubDetail(clubId);
                 break;
             }
             case 4:{
@@ -329,4 +334,80 @@ void Student::applyCreateClub(){
     }
     saveClubData();
     cout<<"申请已提交，社团编号为："<<newId<<"，请等待管理员审核！"<<endl;
+}
+void Student::browseClubs()const{
+    vector<ClubBrief> clubs=clubService->getApprovedClubBriefs();
+    if(clubs.empty()){
+        cout<<"暂无审核通过的社团。"<<endl;
+        return;
+    }
+    cout<<endl;
+    cout<<"========社团列表========"<<endl;
+    for(const ClubBrief& club:clubs){
+        printClubRow(club);
+    }
+    cout<<"共"<<clubs.size()<<"个社团，可通过\"查看社团详情\"了解更多。"<<endl;
+}
+void Student::searchClubs(const string& keyword)const{
+    bool found=false;
+    for(const ClubBrief& club:clubService->getApprovedClubBriefs()){
+        if(club.clubName.find(keyword)!=string::npos){
+            printClubRow(club);
+            found=true;
+        }
+    }
+    if(!found){
+        cout<<"没有找到符合条件的社团。"<<endl;
+    }
+}
+void Student::showClubDetail(const string& clubId)const{
+    //学生只能查看已审核通过的社团
+    if(!clubService->isClubApproved(clubId)){
+        if(clubService->clubExists(clubId)){
+            cout<<"该社团尚未通过审核，暂不能查看。"<<endl;
+        }
+        else{
+            cout<<"未找到该社团。"<<endl;
+        }
+        return;
+    }
+    cout<<endl;
+    cout<<"========社团详情========"<<endl;
+    printClubDetail(clubId);
+}
+void Student::printClubDetail(const string& clubId)const{
+    //只输出资料，不带标题，学生详情和负责人"我的社团"共用
+    for(const ClubBrief& club:clubService->getApprovedClubBriefs()){
+        if(club.clubId!=clubId){
+            continue;
+        }
+        cout<<"编号："<<club.clubId<<endl;
+        cout<<"名称："<<club.clubName<<endl;
+        cout<<"类型："<<club.type<<endl;
+        //分类资料的叫法和申请成立社团时一致
+        if(!club.extraInfo.empty()){
+            if(club.type=="体育社团"){
+                cout<<"运动项目：";
+            }
+            else if(club.type=="学术社团"){
+                cout<<"学术领域：";
+            }
+            else if(club.type=="艺术社团"){
+                cout<<"艺术类别：";
+            }
+            else{
+                cout<<"分类资料：";
+            }
+            cout<<club.extraInfo<<endl;
+        }
+        cout<<"简介："<<club.description<<endl;
+        cout<<"负责人："<<club.leaderId;
+        string leaderName=userManager!=nullptr?userManager->getUserNameById(club.leaderId):"";
+        if(!leaderName.empty()){
+            cout<<" "<<leaderName;
+        }
+        cout<<endl;
+        cout<<"成员人数："<<club.memberCount<<"（不含负责人）"<<endl;
+        return;
+    }
 }
