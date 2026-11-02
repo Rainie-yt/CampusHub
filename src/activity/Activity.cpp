@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cctype>
 #include <iostream>
+
 using std::string;
 using std::vector;
 
@@ -171,7 +172,7 @@ string Activity::toFileString() const {
 
 string Activity::statusText(const string& st) {
     if (st == "approved") return "已通过";
-    if (st == "rejected") return "未通过";
+    if (st == "rejected") return "已拒绝";
     return "待审核";
 }
 
@@ -183,13 +184,13 @@ void Activity::showBaseInfo() const {
               << "地点：" << location << "\n"
               << "标签：";
     for (size_t i = 0; i < tags.size(); ++i) {
-        if (i > 0) std::cout << ", ";
+        if (i > 0) std::cout << "、";
         std::cout << tags[i];
     }
     std::cout << "\n"
               << "人数：" << getCur() << "/" << maxPeople;
     if (isFull()) std::cout << "（已满）";
-    std::cout << "    候补：" << waitList.size() << " 人\n"
+    std::cout << "    候补：" << waitList.size() << "人\n"
               << "积分：" << calcPoints() << "\n"
               << "状态：" << statusText(status) << "\n";
 }
