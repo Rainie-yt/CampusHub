@@ -98,16 +98,19 @@ string percent(double score) {
     return oss.str();
 }
 
-void printBrief(const Activity& a) {
-    cout << "[" << a.getActivityId() << "] " << a.getName() << " | " << a.getTypeName() << " | "
-         << a.getStartTime() << " ~ " << a.getEndTime() << " | " << a.getCur() << "/" << a.getMax();
-    if (!a.getWaitList().empty()) cout << "(候补" << a.getWaitList().size() << ")";
-    cout << " | ";
-    const vector<string>& tags = a.getTags();
-    for (size_t i = 0; i < tags.size(); ++i) {
-        if (i > 0) cout << ",";
-        cout << tags[i];
-    }
+// 活动时间显示：同一天写成 "2026-12-01 14:00~16:00"，跨天则完整显示结束时间
+string timeRange(const Activity& a) {
+    const string& s = a.getStartTime();
+    const string& e = a.getEndTime();
+    if (s.substr(0, 10) == e.substr(0, 10)) return s + "~" + e.substr(11);
+    return s + "~" + e;
+}
+
+// 列表中的一行：编号  名称（类型）  时间  已报名/上限人  [状态]
+void printBrief(const Activity& a, const string& suffix = "") {
+    cout << a.getActivityId() << "  " << a.getName() << "（" << a.getTypeName() << "）  "
+         << timeRange(a) << "  " << a.getCur() << "/" << a.getMax() << "人";
+    if (!suffix.empty()) cout << "  " << suffix;
     cout << "\n";
 }
 
@@ -125,14 +128,14 @@ vector<string> promoteWaiting(Activity& a) {
 
 string joinResultText(JoinResult r) {
     switch (r) {
-        case JoinResult::SUCCESS: return "报名成功";
-        case JoinResult::WAITLISTED: return "活动已满，已加入候补名单";
-        case JoinResult::CONFLICT: return "与已报名的活动时间冲突";
-        case JoinResult::ALREADY_JOINED: return "你已报名该活动";
-        case JoinResult::ALREADY_WAITING: return "你已在该活动的候补名单中";
-        case JoinResult::NOT_FOUND: return "活动不存在";
-        case JoinResult::NOT_APPROVED: return "活动尚未通过审核";
-        case JoinResult::ENDED: return "活动已结束";
+        case JoinResult::SUCCESS: return "报名成功！";
+        case JoinResult::WAITLISTED: return "活动已满，已加入候补名单！";
+        case JoinResult::CONFLICT: return "与已报名的活动时间冲突！";
+        case JoinResult::ALREADY_JOINED: return "你已报名该活动！";
+        case JoinResult::ALREADY_WAITING: return "你已在该活动的候补名单中！";
+        case JoinResult::NOT_FOUND: return "未找到该活动！";
+        case JoinResult::NOT_APPROVED: return "活动尚未通过审核！";
+        case JoinResult::ENDED: return "活动已结束！";
     }
     return "未知结果";
 }
@@ -273,7 +276,7 @@ string ActivityManager::addActivity(std::unique_ptr<Activity> act) {
 }
 
 bool ActivityManager::publishActivity(const string& clubId) {
-    cout << "===== 发布活动 =====\n";
+    cout << "========发布活动========\n";
     string t = readLine("活动类型（1 讲座  2 比赛  3 演出）：");
     string type, extraPrompt;
     if (t == "1") { type = "Lecture"; extraPrompt = "主讲人："; }
@@ -301,17 +304,17 @@ bool ActivityManager::publishActivity(const string& clubId) {
     }
     string id = addActivity(std::move(act));
     if (id.empty()) return false;
-    cout << "活动已提交，编号 " << id << "，等待管理员审核。\n";
+    cout << "活动已提交，编号为：" << id << "，请等待管理员审核！\n";
     return true;
 }
 
 bool ActivityManager::modifyActivity(const string& activityId, const string& operatorClubId) {
     Activity* a = findActivity(activityId);
-    if (!a) { cout << "活动不存在。\n"; return false; }
+    if (!a) { cout << "未找到该活动！\n"; return false; }
     if (!operatorClubId.empty() && a->getClubId() != operatorClubId) { cout << "无权限：只能修改本社团的活动。\n"; return false; }
 
     a->showInfo();
-    cout << "（以下直接回车表示保持不变）\n";
+    cout << "以下直接回车表示保持不变。\n";
     bool changed = false;
 
     string s = readLine("新名称：");
@@ -348,7 +351,7 @@ bool ActivityManager::modifyActivity(const string& activityId, const string& ope
 
     if (changed) {
         autoSaveIfNeeded();
-        cout << "修改完成。\n";
+        cout << "活动信息修改成功！\n";
     } else {
         cout << "没有任何修改。\n";
     }
@@ -423,31 +426,30 @@ vector<const Activity*> ActivityManager::getActivitiesByClub(const string& clubI
 
 void ActivityManager::showApprovedActivities() const {
     vector<const Activity*> v = getApprovedActivities();
-    cout << "========== 活动列表 ==========\n";
-    if (v.empty()) cout << "（暂无活动）\n";
+    cout << "========活动列表========\n";
+    if (v.empty()) cout << "暂无活动。\n";
     for (size_t i = 0; i < v.size(); ++i) printBrief(*v[i]);
 }
 
 void ActivityManager::showPendingActivities() const {
     vector<const Activity*> v = getPendingActivities();
-    cout << "========== 待审核活动 ==========\n";
-    if (v.empty()) cout << "（没有待审核的活动）\n";
+    cout << "========待审核活动========\n";
+    if (v.empty()) cout << "暂无待审核的活动。\n";
     for (size_t i = 0; i < v.size(); ++i) printBrief(*v[i]);
 }
 
 void ActivityManager::showActivitiesByClub(const string& clubId) const {
     vector<const Activity*> v = getActivitiesByClub(clubId);
-    cout << "========== 社团 " << clubId << " 的活动 ==========\n";
-    if (v.empty()) cout << "（暂无活动）\n";
+    cout << "========本社团活动========\n";
+    if (v.empty()) cout << "暂无活动。\n";
     for (size_t i = 0; i < v.size(); ++i) {
-        printBrief(*v[i]);
-        cout << "    状态：" << Activity::statusText(v[i]->getStatus()) << "\n";
+        printBrief(*v[i], Activity::statusText(v[i]->getStatus()));
     }
 }
 
 void ActivityManager::showActivityDetail(const string& activityId) const {
     const Activity* a = findActivity(activityId);
-    if (!a) { cout << "活动不存在。\n"; return; }
+    if (!a) { cout << "未找到该活动！\n"; return; }
     a->showInfo();
 }
 
@@ -480,8 +482,8 @@ bool ActivityManager::joinActivity(const string& userId, const string& activityI
     if (r == JoinResult::CONFLICT) {
         const Activity* target = findActivity(activityId);
         const Activity* other = target ? findConflict(userId, *target) : nullptr;
-        if (other)
-            cout << "：" << other->getName() << "（" << other->getStartTime() << " ~ " << other->getEndTime() << "）";
+        cout << "\n";
+        if (other) cout << "冲突活动：" << other->getName() << "（" << timeRange(*other) << "）。";
     }
     cout << "\n";
     return r == JoinResult::SUCCESS || r == JoinResult::WAITLISTED;
@@ -506,51 +508,50 @@ bool ActivityManager::cancelActivity(const string& userId, const string& activit
 }
 
 void ActivityManager::showMyActivities(const string& userId) const {
-    cout << "========== 我的活动 ==========\n";
+    cout << "========我的活动========\n";
     bool any = false;
     for (size_t i = 0; i < activities.size(); ++i) {
         const Activity& a = *activities[i];
         if (a.hasParticipant(userId)) {
-            printBrief(a);
-            cout << "    状态：已报名" << (a.hasEnded(now()) ? "（已结束）" : "") << "\n";
+            printBrief(a, a.hasEnded(now()) ? "已报名（已结束）" : "已报名");
             any = true;
         } else if (a.inWaitList(userId)) {
-            printBrief(a);
             size_t pos = std::find(a.getWaitList().begin(), a.getWaitList().end(), userId) - a.getWaitList().begin();
-            cout << "    状态：候补第 " << pos + 1 << " 位\n";
+            printBrief(a, "候补第" + std::to_string(pos + 1) + "位");
             any = true;
         }
     }
-    if (!any) cout << "（还没有报名任何活动）\n";
+    if (!any) cout << "你还没有报名任何活动。\n";
 }
 
 // ======================= 报名管理 =======================
 
 void ActivityManager::showRegistration(const string& activityId) const {
     const Activity* a = findActivity(activityId);
-    if (!a) { cout << "活动不存在。\n"; return; }
-    cout << "========== " << a->getName() << " 报名情况（" << a->getCur() << "/" << a->getMax() << "）==========\n";
+    if (!a) { cout << "未找到该活动！\n"; return; }
+    cout << "========报名情况========\n"
+         << a->getName() << "（" << a->getCur() << "/" << a->getMax() << "）\n";
     for (size_t i = 0; i < a->getParticipants().size(); ++i)
-        cout << i + 1 << ". " << a->getParticipants()[i] << "\n";
-    if (a->getParticipants().empty()) cout << "（暂无报名）\n";
+        cout << i + 1 << "." << a->getParticipants()[i] << "\n";
+    if (a->getParticipants().empty()) cout << "暂无报名。\n";
     if (!a->getWaitList().empty()) {
-        cout << "---- 候补名单 ----\n";
+        cout << "候补名单：\n";
         for (size_t i = 0; i < a->getWaitList().size(); ++i)
-            cout << i + 1 << ". " << a->getWaitList()[i] << "\n";
+            cout << i + 1 << "." << a->getWaitList()[i] << "\n";
     }
 }
 
 void ActivityManager::manageRegistration(const string& activityId, const string& operatorClubId) {
     Activity* a = findActivity(activityId);
-    if (!a) { cout << "活动不存在。\n"; return; }
+    if (!a) { cout << "未找到该活动！\n"; return; }
     if (!operatorClubId.empty() && a->getClubId() != operatorClubId) { cout << "无权限：只能管理本社团的活动。\n"; return; }
     while (true) {
         showRegistration(activityId);
-        string uid = readLine("输入要移除的用户编号（直接回车退出）：");
+        string uid = readLine("请输入要移除的用户Id（直接回车返回）：");
         if (uid.empty()) return;
         string promoted;
         if (cancelActivity(uid, activityId, &promoted)) {
-            cout << "已移除 " << uid << "。\n";
+            cout << "已移除 " << uid << "！\n";
             if (!promoted.empty()) cout << "候补用户 " << promoted << " 已递补入选。\n";
         } else {
             cout << "移除失败：该用户不在名单中，或活动已结束。\n";
