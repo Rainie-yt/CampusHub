@@ -4,6 +4,7 @@
 #include"../common/InputUtils.h"
 #include"UserManager.h"
 #include"../club/ClubService.h"
+#include"../activity/ActivityManager.h"
 //社团列表的一行：编号、名称、类型
 static void printClubRow(const ClubBrief& club){
     cout<<club.clubId<<"  "<<club.clubName<<"（"<<club.type<<"）"<<endl;
@@ -39,12 +40,10 @@ void Student::showMenu(){
                 clubMenu();
                 break;
             case 3:
-                //活动报名，属于活动模块
-                cout<<"该功能等待活动模块完成。"<<endl;
+                joinActivityMenu();
                 break;
             case 4:
                 showMyActivityMenu();
-                //活动模块负责提供我的报名活动信息
                 break;
             case 5:
                 recommendClubs();
@@ -64,10 +63,7 @@ void Student::showInfoMenu(){
         showInfo();
         cout<<"专业："<<major<<endl;
         cout<<"兴趣标签：";
-        for(const auto& interest:interests){
-            cout<<interest<<" ";
-        }
-        cout<<endl;
+        showInterests();
         cout<<"1.修改密码"<<endl;
         cout<<"2.管理兴趣标签"<<endl;
         cout<<"0.返回上一级菜单"<<endl;
@@ -168,22 +164,89 @@ void Student::removeInterest(string interest){
 }
 void Student::showInterests()const{
     if(interests.empty()){
-        cout<<"无兴趣标签"<<endl;
+        cout<<"无"<<endl;
+        return;
     }
-    else{
-        for(const auto& interest:interests){
-            cout<<interest<<" ";
+    //标签之间用顿号隔开，最后一个后面不加
+    for(size_t i=0;i<interests.size();i++){
+        if(i>0){
+            cout<<"、";
         }
-        cout<<endl;
+        cout<<interests[i];
     }
+    cout<<endl;
 }
 vector<string> Student::getInterests()const{
     return interests;
 }
+void Student::joinActivityMenu(){
+    if(activityManager==nullptr){
+        cout<<"活动数据未加载！"<<endl;
+        return;
+    }
+    cout<<endl;
+    activityManager->showApprovedActivities();
+    if(activityManager->getApprovedActivities().empty()){
+        return;
+    }
+    cout<<endl;
+    cout<<"请输入要报名的活动编号（输入0返回）：";
+    string activityId;
+    cin>>activityId;
+    if(activityId=="0"){
+        return;
+    }
+        Activity* act=activityManager->findActivity(activityId);
+    if(act==nullptr||!act->isApproved()){
+        cout<<"未找到该活动，或活动尚未通过审核！"<<endl;
+        return;
+    }
+    //先显示详情（含地点等），确认后再报名
+    cout<<endl;
+    act->showInfo();
+    cout<<"确认报名该活动吗？1.确认  0.取消"<<endl;
+    cout<<"请选择：";
+    if(readIntChoice()!=1){
+        cout<<"已取消。"<<endl;
+        return;
+    }
+    //报名结果（成功、候补、时间冲突等）由活动板块自己输出
+    activityManager->joinActivity(userId,activityId);
+}
 void Student::showMyActivityMenu()
 {
-    // TODO：后续对接活动模块
-    cout<<"该功能等待活动模块完成。"<<endl;
+    if(activityManager==nullptr){
+        cout<<"活动数据未加载！"<<endl;
+        return;
+    }
+    while(true){
+        cout<<endl;
+        activityManager->showMyActivities(userId);
+        cout<<"我的积分："<<activityManager->getUserPoints(userId)<<"（参加的活动结束后计入）"<<endl;
+        cout<<endl;
+        cout<<"1.取消报名"<<endl;
+        cout<<"0.返回上一级菜单"<<endl;
+        cout<<endl;
+        cout<<"请选择：";
+        int choice=readIntChoice();
+        if(choice==0){
+            return;
+        }
+        if(choice!=1){
+            cout<<"无效的选择，请重新输入！"<<endl;
+            continue;
+        }
+        cout<<"请输入要取消报名的活动编号：";
+        string activityId;
+        cin>>activityId;
+        //取消正式名额后，候补的第一个人会自动递补
+        if(activityManager->cancelActivity(userId,activityId)){
+            cout<<"已成功取消报名！"<<endl;
+        }
+        else{
+            cout<<"取消失败：你没有报名该活动，或活动已结束。"<<endl;
+        }
+    }
 }
 void Student::recommendClubs()const{
     if(clubService==nullptr){
@@ -191,9 +254,11 @@ void Student::recommendClubs()const{
         return;
     }
     if(interests.empty()){
-        cout<<"您还没有兴趣标签，请先在个人信息管理中添加！"<<endl;
+        cout<<"你还没有兴趣标签，请先在个人信息管理中添加！"<<endl;
         return;
     }
+    cout<<endl;
+    cout<<"========为你推荐社团========"<<endl;
     vector<ClubBrief> clubs=clubService->getApprovedClubBriefs();
     bool found=false;
     for(const ClubBrief& club:clubs){
@@ -208,7 +273,20 @@ void Student::recommendClubs()const{
         }
     }
     if(!found){
-        cout<<"暂时没有匹配您兴趣的社团，您可以尝试添加更多兴趣标签！"<<endl;
+        cout<<"暂时没有匹配你兴趣的社团，你可以尝试添加更多兴趣标签！"<<endl;
+    }
+    //再推荐活动：按兴趣标签和活动标签的匹配度排序，由活动模块计算
+    if(activityManager!=nullptr){
+        cout<<endl;
+        cout<<"========为你推荐活动========"<<endl;
+        //recommend()只返回结果、不输出，按匹配度从高到低排好序，自己按统一格式显示前5个
+        vector<pair<const Activity*,double>> acts=activityManager->recommend(interests,userId);
+        if(acts.empty()){
+            cout<<"暂时没有匹配你兴趣的活动，你可以尝试添加更多兴趣标签！"<<endl;
+        }
+        for(size_t i=0;i<acts.size()&&i<5;i++){
+            cout<<"推荐活动："<<acts[i].first->getActivityId()<<"  "<<acts[i].first->getName()<<endl;
+        }
     }
 }
 void Student::clubMenu(){
@@ -263,10 +341,10 @@ void Student::clubMenu(){
                 break;
             }
             case 5:
-                clubService->showMyApplications(userId);
+                showMyApplicationList();
                 break;
             case 6:
-                clubService->showMyClubs(userId);
+                showMyClubList();
                 break;
             case 7:{
                 string clubId;
@@ -320,7 +398,7 @@ void Student::applyCreateClub(){
             type="普通社团";
             break;
         default:
-            cout<<"无效的选择，申请失败！"<<endl;
+            cout<<"无效的选择，已取消申请。"<<endl;
             return;
     }
     cout<<"请输入社团名称：";
@@ -346,7 +424,7 @@ void Student::browseClubs()const{
     for(const ClubBrief& club:clubs){
         printClubRow(club);
     }
-    cout<<"共"<<clubs.size()<<"个社团，可通过\"查看社团详情\"了解更多。"<<endl;
+    cout<<"共"<<clubs.size()<<"个社团"<<endl;
 }
 void Student::searchClubs(const string& keyword)const{
     bool found=false;
@@ -367,7 +445,7 @@ void Student::showClubDetail(const string& clubId)const{
             cout<<"该社团尚未通过审核，暂不能查看。"<<endl;
         }
         else{
-            cout<<"未找到该社团。"<<endl;
+            cout<<"未找到该社团！"<<endl;
         }
         return;
     }
@@ -409,5 +487,36 @@ void Student::printClubDetail(const string& clubId)const{
         cout<<endl;
         cout<<"成员人数："<<club.memberCount<<"（不含负责人）"<<endl;
         return;
+    }
+}
+void Student::showMyClubList()const{
+    cout<<endl;
+    cout<<"========我加入的社团========"<<endl;
+    bool found=false;
+    //成员只会在已通过的社团里，逐个查成员名单
+    for(const ClubBrief& club:clubService->getApprovedClubBriefs()){
+        vector<string> ids=clubService->getClubMemberIds(club.clubId);
+        if(find(ids.begin(),ids.end(),userId)!=ids.end()){
+            printClubRow(club);
+            found=true;
+        }
+    }
+    if(!found){
+        cout<<"你尚未加入任何社团。"<<endl;
+    }
+}
+void Student::showMyApplicationList()const{
+    cout<<endl;
+    cout<<"========我的加入申请========"<<endl;
+    bool found=false;
+    for(const ClubBrief& club:clubService->getApprovedClubBriefs()){
+        vector<string> ids=clubService->getClubApplicantIds(club.clubId);
+        if(find(ids.begin(),ids.end(),userId)!=ids.end()){
+            printClubRow(club);
+            found=true;
+        }
+    }
+    if(!found){
+        cout<<"暂无待审核的加入申请。"<<endl;
     }
 }

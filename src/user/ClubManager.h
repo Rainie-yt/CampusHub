@@ -30,5 +30,7 @@ class ClubManager:public Student{
     void deleteActivity();
     void showActivityRegistration();
     void manageRegistration();
+    string selectMyActivity(const string& prompt);
+    //显示本社团活动并输入编号，不是本社团的活动返回空字符串
     string getClubId()const;
 };

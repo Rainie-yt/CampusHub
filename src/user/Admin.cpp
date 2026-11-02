@@ -4,6 +4,7 @@
 #include"../club/ClubService.h"
 #include"../common.h"
 #include"UserManager.h"
+#include"../activity/ActivityManager.h"
 Admin::Admin(string id,string name,string pwd):User(id,name,pwd,"Admin")
 {
 }
@@ -15,7 +16,7 @@ void Admin::showMenu(){
         cout<<endl;
         cout<<"========管理员菜单========"<<endl;
         cout<<"1.用户管理"<<endl;
-        cout<<"2.社团审核"<<endl;
+        cout<<"2.社团管理"<<endl;
         cout<<"3.活动管理"<<endl;
         cout<<"4.数据统计"<<endl;
         cout<<"0.退出登录"<<endl;
@@ -155,12 +156,25 @@ void Admin::deleteUser(){
             saveClubData();
         }
     }
-    cout<<"用户已删除。"<<endl;
+    cout<<"用户已删除！"<<endl;
     if(leftClubs>0){
         cout<<"已将其移出"<<leftClubs<<"个社团。"<<endl;
     }
     if(cancelledApps>0){
         cout<<"已撤销其"<<cancelledApps<<"条加入申请。"<<endl;
+    }
+    //取消他在未结束活动中的报名和候补，空出名额由候补自动递补
+    //已结束活动的记录保留
+    int cancelledActs=0;
+    if(activityManager!=nullptr){
+        for(const Activity* act:activityManager->getAllActivities()){
+            if(activityManager->cancelActivity(targetId,act->getActivityId())){
+                cancelledActs++;
+            }
+        }
+    }
+    if(cancelledActs>0){
+        cout<<"已取消其"<<cancelledActs<<"个未结束活动的报名或候补。"<<endl;
     }
 }
 void Admin::freezeUser(){
@@ -171,16 +185,16 @@ void Admin::freezeUser(){
     string name=userManager->getUserNameById(targetId);
     //已冻结就问是否解冻，否则问是否冻结
     bool frozen=(userManager->getUserStatus(targetId)==USER_FROZEN);
-    //管理员不能被冻结，单已冻结的仍可以解冻
+    //管理员不能被冻结，但已冻结的仍可以解冻
     if(!frozen&&userManager->getUserRole(targetId)==ROLE_ADMIN){
         cout<<"不能冻结管理员账号！"<<endl;
         return;
     }
     if(frozen){
-        cout<<targetId<<" "<<name<<" 目前已冻结，是否解冻？1.解冻  0.取消"<<endl;
+        cout<<"该账号目前已冻结，确认解冻 "<<targetId<<" "<<name<<" 吗？1.确认  0.取消"<<endl;
     }
     else{
-        cout<<"确认冻结 "<<targetId<<" "<<name<<" 吗？冻结后该用户无法登录。1.冻结  0.取消"<<endl;
+        cout<<"确认冻结 "<<targetId<<" "<<name<<" 吗？冻结后该用户无法登录。1.确认  0.取消"<<endl;
     }
     cout<<"请选择：";
     if(readIntChoice()!=1){
@@ -192,7 +206,7 @@ void Admin::freezeUser(){
         cout<<"操作失败！"<<endl;
         return;
     }
-    cout<<(frozen?"已解冻该账号。":"已冻结该账号。")<<endl;
+    cout<<(frozen?"已解冻该账号！":"已冻结该账号！")<<endl;
 }
 void Admin::modifyUserRole(){
     string targetId=selectUser("请输入要修改角色的用户Id：");
@@ -243,7 +257,7 @@ void Admin::modifyUserRole(){
         return;
     }
     if(userManager->changeRole(targetId,newRole)){
-        cout<<"角色修改成功（该用户重新登录后生效）。"<<endl;
+        cout<<"角色修改成功！（该用户重新登录后生效）"<<endl;
     }
 }
 //社团管理：需要调用社团模块
@@ -315,13 +329,13 @@ void Admin::auditClub(){
     }
     saveClubData();
     if(!passed){
-        cout<<"已拒绝该社团的申请。"<<endl;
+        cout<<"已拒绝该社团的申请！"<<endl;
         return;
     }
     //通过后把申请人改成负责人
     string leaderId=clubService->getClubLeaderId(clubId);
     if(userManager!=nullptr&&userManager->changeRole(leaderId,ROLE_CLUB_MANAGER)){
-        cout<<"审核通过，"<<leaderId<<"已成为社团负责人（重新登录后生效）。"<<endl;
+        cout<<"审核通过，"<<leaderId<<"已成为社团负责人！（重新登录后生效）"<<endl;
     }
     else{
         cout<<"社团已通过，但修改负责人角色失败，请检查用户数据。"<<endl;
@@ -338,7 +352,20 @@ void Admin::deleteClub()
     string leaderId=clubService->getClubLeaderId(clubId);
     if(clubService->deleteClub(clubId)){
         saveClubData();
-        cout<<"该社团已删除。"<<endl;
+        cout<<"社团已删除！"<<endl;
+        //社团的活动一起删除，先记下编号再删，避免边遍历边删除
+        if(activityManager!=nullptr){
+            vector<string> activityIds;;
+            for(const Activity* act:activityManager->getActivitiesByClub(clubId)){
+                activityIds.push_back(act->getActivityId());
+            }
+            for(const string& id:activityIds){
+                activityManager->removeActivity(id);
+            }
+            if(!activityIds.empty()){
+                cout<<"已同时删除该社团的"<<activityIds.size()<<"个活动。"<<endl;
+            }
+        }
         //原来是负责人、且没有别的已通过社团，就改回普通学生
         if(userManager!=nullptr&&userManager->getUserRole(leaderId)==ROLE_CLUB_MANAGER&&clubService->findClubByLeader(leaderId).empty()){
             if(userManager->changeRole(leaderId,ROLE_STUDENT)){
@@ -389,46 +416,93 @@ void Admin::activityManageMenu()
 }
 void Admin::viewActivityInfo()
 {
-    cout<<"进入查看活动信息..."<<endl;
-    /*
-        对接活动模块
-        调用：ActivitySystem.showAllActivity()
-        获取：
-        活动编号
-        活动名称
-        发布社团
-        活动状态
-    */
+    if(activityManager==nullptr){
+        cout<<"活动数据未加载！"<<endl;
+        return;
+    }
+    vector<const Activity*> acts=activityManager->getAllActivities();
+    cout<<endl;
+    cout<<"========活动列表========"<<endl;
+    if(acts.empty()){
+        cout<<"暂无活动。"<<endl;
+        return;
+    }
+    //每个活动一行：编号、名称、类型、所属社团、审核状态
+    for(const Activity* act:acts){
+        cout<<act->getActivityId()<<"  "<<act->getName()<<"（"<<act->getTypeName()<<"）  "
+            <<act->getClubId()<<"  "<<Activity::statusText(act->getStatus())<<endl;
+    }
+    cout<<"共"<<acts.size()<<"个活动"<<endl;
 }
 void Admin::auditActivity()
 {
-    cout<<"进入活动审核..."<<endl;
-    /*
-        对接活动模块
-        调用：
-        ActivitySystem.auditActivity(activityId)
-        审核活动：
-        通过
-        驳回
-    */
-
+    if(activityManager==nullptr){
+        cout<<"活动数据未加载！"<<endl;
+        return;
+    }
+    cout<<endl;
+    activityManager->showPendingActivities();
+    if(activityManager->getPendingActivities().empty()){
+        return;
+    }
+    string activityId;
+    cout<<endl;
+    cout<<"请输入要审核的活动编号：";
+    cin>>activityId;
+    Activity* act=activityManager->findActivity(activityId);
+    if(act==nullptr||act->getStatus()!=STATUS_PENDING){
+        cout<<"审核失败：活动不存在或已经审核过。"<<endl;
+        return;
+    }
+    cout<<endl;
+    act->showInfo();
+    int choice;
+    //输错就重新选，选0可以随时取消
+    while(true){
+        cout<<"1.通过  2.拒绝  0.取消"<<endl;
+        cout<<"请选择：";
+        choice=readIntChoice();
+        if(choice==0){
+            cout<<"已取消审核。"<<endl;
+            return;
+        }
+        if(choice==1||choice==2){
+            break;
+        }
+        cout<<"无效的选择，请重新输入！"<<endl;
+    }
+    activityManager->auditActivity(activityId,choice==1);
+    cout<<(choice==1?"活动已通过审核！":"已拒绝该活动！")<<endl;
 }
 void Admin::removeActivity()
 {
-    cout<<"进入删除活动..."<<endl;
-    /*
-        【对接活动模块】
-        调用：
-        ActivitySystem.deleteActivity(activityId)
-        删除违规活动
-    */
+    viewActivityInfo();
+    if(activityManager==nullptr||activityManager->getAllActivities().empty()){
+        return;
+    }
+    string activityId;
+    cout<<endl;
+    cout<<"请输入要删除的活动编号：";
+    cin>>activityId;
+    if(activityManager->findActivity(activityId)==nullptr){
+        cout<<"未找到该活动！"<<endl;
+        return;
+    }
+    cout<<"确认删除该活动吗？报名记录会一起删除。1.确认  0.取消"<<endl;
+    cout<<"请选择：";
+    if(readIntChoice()!=1){
+        cout<<"已取消。"<<endl;
+        return;
+    }   
+    activityManager->removeActivity(activityId);
+    cout<<"活动已删除！"<<endl;
 }
 void Admin::systemStatisticsMenu()
 {
     while(true)
     {
         cout<<endl;
-        cout<<"========系统统计========"<<endl;
+        cout<<"========数据统计========"<<endl;
         cout<<"1.用户数量统计"<<endl;
         cout<<"2.社团数量统计"<<endl;
         cout<<"3.活动数量统计"<<endl;
@@ -451,9 +525,11 @@ void Admin::systemStatisticsMenu()
                 break;
 
             case 3:
-                // 对接活动模块
-                // 获取系统活动数量
-                cout<<"该功能等待活动模块完成。"<<endl;
+                if(activityManager!=nullptr){
+                    cout<<"活动总数："<<activityManager->getAllActivities().size()<<endl;
+                    cout<<"已通过："<<activityManager->getApprovedActivities().size()<<endl;
+                    cout<<"待审核："<<activityManager->getPendingActivities().size()<<endl;
+                }
                 break;
 
             case 0:

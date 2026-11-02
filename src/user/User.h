@@ -3,6 +3,7 @@
 using namespace std;
 class UserManager;
 class ClubService;
+class ActivityManager;
 //前向声明
 class User
 /*
@@ -20,6 +21,8 @@ class User
     //记录是谁创建了自己，方便回调写文件
     ClubService* clubService=nullptr;
     //社团数据，由main创建后注入
+    ActivityManager* activityManager=nullptr;
+    //活动数据，由main创建后注入
     void saveClubData();
     //把社团、成员、申请三个文件一起写回
     public:
@@ -32,6 +35,8 @@ class User
     //供UserManager创建对象后“注入”自己
     void setClubService(ClubService* cs);
     //登录后由main注入社团数据
+    void setActivityManager(ActivityManager* am);
+    //登录后由main注入活动数据
     void changePassword(string newpwd);
     //修改密码
     virtual void showInfo()const;

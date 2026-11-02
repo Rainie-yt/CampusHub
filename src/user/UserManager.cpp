@@ -431,13 +431,19 @@ bool UserManager::showUserInfoById(const string& userId){
             //不显示密码fields[2]
             cout<<"用户Id："<<fields[0]<<endl;
             cout<<"用户名："<<fields[1]<<endl;
-            cout<<"用户角色："<<fields[3]<<endl;
+            cout<<"用户角色："<<roleName(fields[3])<<endl;
             cout<<"专业："<<fields[4]<<endl;
             if(fields[5]=="None"){
                 cout<<"兴趣标签：无"<<endl;
             }
             else{
-                cout<<"兴趣标签："<<fields[5]<<endl;
+                //文件里用逗号分隔，显示时换成顿号
+                string tags=fields[5];
+                size_t pos;
+                while((pos=tags.find(','))!=string::npos){
+                    tags.replace(pos,1,"、");
+                }
+                cout<<"兴趣标签："<<tags<<endl;
             }
             return true;
         }
@@ -507,9 +513,9 @@ void UserManager::showAllUsers(){
         if(fields.size()<6){
             continue;
         }
-        cout<<fields[0]<<" "<<fields[1]<<" "<<roleName(fields[3]);
+        cout<<fields[0]<<"  "<<fields[1]<<"  "<<roleName(fields[3]);
         if(statusOf(fields)==USER_FROZEN){
-            cout<<" 已冻结";
+            cout<<"  已冻结";
         }
         cout<<endl;
         count++;

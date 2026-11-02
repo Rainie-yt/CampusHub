@@ -5,6 +5,7 @@
 #include"src/user/UserManager.h"
 #include"src/common/InputUtils.h"
 #include"src/club/ClubService.h"
+#include"src/activity/ActivityManager.h"
 #include"src/common.h"
 using namespace std;
 /*
@@ -52,6 +53,9 @@ int main(){
     else{
         cout<<"提示：未读取到社团数据，将从空列表开始。"<<endl;
     }
+    //活动数据，文件不存在时从空列表开始，修改后自动保存
+    ActivityManager activityManager;
+    activityManager.load();
     //系统主循环
     while(true){
         //显示主菜单
@@ -81,6 +85,7 @@ int main(){
                 //登录成功
                 if(currentUser!=nullptr){
                     currentUser->setClubService(&clubService);
+                    currentUser->setActivityManager(&activityManager);
                     currentUser->showMenu();
                     //调用虚函数showMenu()，实际调用哪个版本由currentUser实际指向的对象决定
                     /*

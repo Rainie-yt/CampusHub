@@ -13,7 +13,13 @@ class Student:public User{
     void showInfoMenu();
     //个人信息菜单
     void showMyActivityMenu();
-    //我的报名活动
+    //我的报名活动:查看、取消报名、积分
+    void joinActivityMenu();
+    void showMyClubList()const;
+    //我加入的社团，每个社团一行
+    void showMyApplicationList()const;
+    //我的加入申请（待审核），每个社团一行
+    //活动报名：浏览已通过的活动，查看详情后报名
     void addInterest(string interest);
     void loadInterest(string interest);
     //程序从users.txt恢复已有兴趣，只加载不提示

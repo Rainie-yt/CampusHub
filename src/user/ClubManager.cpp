@@ -3,6 +3,7 @@
 #include"../common/InputUtils.h"
 #include"../club/ClubService.h"
 #include"UserManager.h"
+#include"../activity/ActivityManager.h"
 ClubManager::ClubManager(string id,string name,string pwd,string maj,string cid):Student(id,name,pwd,maj),clubId(cid)
 {
     role="ClubManager";
@@ -15,7 +16,7 @@ void ClubManager::showMenu(){
     while(true){
         cout<<endl;
         cout<<"欢迎您，"<<userName<<"！"<<endl;
-        cout<<"角色：负责人"<<endl;
+        cout<<"角色：社团负责人"<<endl;
         cout<<endl;
         cout<<"========社团负责人菜单========"<<endl;
         cout<<"1.个人信息管理"<<endl;
@@ -245,7 +246,7 @@ void ClubManager::memberActionMenu(const string& memberId){
                 }
                 if(clubService->removeClubMember(userId,clubId,memberId)){
                     saveClubData();
-                    cout<<"已移除该成员。"<<endl;
+                    cout<<"已移除该成员！"<<endl;
                     return;
                     //人已不在社团，直接回到名单
                 }
@@ -305,7 +306,7 @@ void ClubManager::applicantActionMenu(const string& applicantId){
             case 2:
                 if(clubService->approveApplication(userId,clubId,applicantId)){
                     saveClubData();
-                    cout<<"已通过，"<<applicantId<<" 成为社团成员。"<<endl;
+                    cout<<"已通过，"<<applicantId<<" 成为社团成员！"<<endl;
                     return;
                 }
                 cout<<"操作失败：该用户不在申请名单中。"<<endl;
@@ -313,7 +314,7 @@ void ClubManager::applicantActionMenu(const string& applicantId){
             case 3:
                 if(clubService->rejectApplication(userId,clubId,applicantId)){
                     saveClubData();
-                    cout<<"已拒绝该申请。"<<endl;
+                    cout<<"已拒绝该申请！"<<endl;
                     return;
                 }
                 cout<<"操作失败：该用户不在申请名单中。"<<endl;
@@ -331,23 +332,79 @@ string ClubManager::nameOf(const string& id){
     }
     return userManager->getUserNameById(id);
 }
+string ClubManager::selectMyActivity(const string& prompt){
+    if(activityManager==nullptr){
+        cout<<"活动数据未加载！"<<endl;
+        return "";
+    }
+    cout<<endl;
+    activityManager->showActivitiesByClub(clubId);
+    if(activityManager->getActivitiesByClub(clubId).empty()){
+        return "";
+    }
+    cout<<endl;
+    cout<<prompt;
+    string activityId;
+    cin>>activityId;
+    //只能操作本社团的活动
+    Activity* act=activityManager->findActivity(activityId);
+    if(act==nullptr||act->getClubId()!=clubId){
+        cout<<"未找到该活动，或该活动不属于本社团！"<<endl;
+        return "";
+    }
+    return activityId;
+}
 void ClubManager::publishActivity(){
-    //对接活动模块，传递clubId创建活动名称、时间、地点、描述
-    cout<<"该功能等待活动模块完成。"<<endl;
+    if(activityManager==nullptr){
+        cout<<"活动数据未加载！"<<endl;
+        return;
+    }
+    skipLine();
+    //活动板块用整行读取，先清掉菜单选项后面的换行
+    cout<<endl;
+    activityManager->publishActivity(clubId);
 }
 void ClubManager::modifyActivity(){
-    //对接活动模块，根据clubId查询本社团活动，选择具体的activityId后修改活动信息
-    cout<<"该功能等待活动模块完成。"<<endl;
+    string activityId=selectMyActivity("请输入要修改的活动编号：");
+    if(activityId.empty()){
+        return;
+    }
+    skipLine();
+    cout<<endl;
+    activityManager->modifyActivity(activityId,clubId);
 }
 void ClubManager::deleteActivity(){
-    //对接活动模块，根据clubId查询本社团活动，选择具体activityId后删除活动
-    cout<<"该功能等待活动模块完成。"<<endl;
+    string activityId=selectMyActivity("请输入要删除的活动编号：");
+    if(activityId.empty()){
+        return;
+    }
+    cout<<"确认删除该活动吗？报名记录会一起删除。1.确认  0.取消"<<endl;
+    cout<<"请选择：";
+    if(readIntChoice()!=1){
+        cout<<"已取消。"<<endl;
+        return;
+    }
+    if(activityManager->deleteActivity(activityId,clubId)){
+        cout<<"活动已删除！"<<endl;
+    }
+    else{
+        cout<<"删除失败：该活动不存在或不属于本社团。"<<endl;
+    }
 }
 void ClubManager::showActivityRegistration(){
-    //对接活动模块，根据activityId查询报名学生列表
-    cout<<"该功能等待活动模块完成。"<<endl;
+    string activityId=selectMyActivity("请输入要查看报名情况的活动编号：");
+    if(activityId.empty()){
+        return;
+    }
+    cout<<endl;
+    activityManager->showRegistration(activityId);
 }
 void ClubManager::manageRegistration(){
-    //对接活动模块，实现审核报名，通过、拒绝申请、查看报名名单
-    cout<<"该功能等待活动模块完成。"<<endl;
+    string activityId=selectMyActivity("请输入要管理报名的活动编号：");
+    if(activityId.empty()){
+        return;
+    }
+    skipLine();
+    cout<<endl;
+    activityManager->manageRegistration(activityId,clubId);
 }

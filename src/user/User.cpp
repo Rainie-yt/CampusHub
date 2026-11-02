@@ -28,6 +28,9 @@ void User::setUserManager(UserManager* um){
 void User::setClubService(ClubService* cs){
     clubService=cs;
 }
+void User::setActivityManager(ActivityManager* am){
+    activityManager=am;
+}
 void User::saveClubData(){
     if(clubService==nullptr){
         return;
@@ -50,7 +53,18 @@ void User::showInfo()const
 {
     cout<<"用户Id："<<userId<<endl;
     cout<<"用户名："<<userName<<endl;
-    cout<<"用户角色："<<role<<endl;
+    //角色显示中文，和用户列表一致
+    string roleText=role;
+    if(role==ROLE_STUDENT){
+        roleText="普通学生";
+    }
+    else if(role==ROLE_CLUB_MANAGER){
+        roleText="社团负责人";
+    }
+    else if(role==ROLE_ADMIN){
+        roleText="系统管理员";
+    }
+    cout<<"用户角色："<<roleText<<endl;
 }
 User::~User()
 {
