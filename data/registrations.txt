@@ -1,0 +1,6 @@
+10001|3001|registered
+10002|3001|registered
+10004|3001|waitlist
+10002|3004|registered
+10001|3006|registered
+10002|3006|registered
