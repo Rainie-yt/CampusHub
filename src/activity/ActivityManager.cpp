@@ -425,7 +425,12 @@ vector<const Activity*> ActivityManager::getActivitiesByClub(const string& clubI
 }
 
 void ActivityManager::showApprovedActivities() const {
-    vector<const Activity*> v = getApprovedActivities();
+    // 学生浏览时只显示已通过且未结束的活动（已结束的活动不能报名，没必要列出来）。
+    // 注意：getApprovedActivities() 仍然包含已结束的活动，管理员统计要用。
+    string current = now();
+    vector<const Activity*> v;
+    for (size_t i = 0; i < activities.size(); ++i)
+        if (activities[i]->isApproved() && !activities[i]->hasEnded(current)) v.push_back(activities[i].get());
     cout << "========活动列表========\n";
     if (v.empty()) cout << "暂无活动。\n";
     for (size_t i = 0; i < v.size(); ++i) printBrief(*v[i]);
