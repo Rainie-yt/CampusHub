@@ -40,8 +40,7 @@ void ClubManager::showMenu(){
                 break;
             }
             case 3:{
-                //活动模块
-                cout<<"该功能等待活动模块完成。"<<endl;
+                joinActivityMenu();
                 break;
             }
             case 4:{
@@ -205,9 +204,9 @@ void ClubManager::memberListMenu(){
             return;
         }
         for(size_t i=0;i<memberIds.size();i++){
-            cout<<i+1<<". "<<memberIds[i]<<" "<<nameOf(memberIds[i])<<endl;
+            cout<<i+1<<"."<<memberIds[i]<<"  "<<nameOf(memberIds[i])<<endl;
         }
-        cout<<"0. 返回"<<endl;
+        cout<<"0.返回"<<endl;
         cout<<endl;
         cout<<"请选择成员序号：";
         int choice=readIntChoice();
@@ -234,11 +233,13 @@ void ClubManager::memberActionMenu(const string& memberId){
         switch(choice){
             case 1:
                 if(userManager!=nullptr){
+                    cout<<endl;
+                    cout<<"========成员信息========"<<endl;
                     userManager->showUserInfoById(memberId);
                 }
                 break;
             case 2:{
-                cout<<"确认移除 "<<memberId<<" 吗？1.确认  0.取消"<<endl;
+                cout<<"确认移除 "<<memberId<<" "<<nameOf(memberId)<<" 吗？1.确认  0.取消"<<endl;
                 cout<<"请选择：";
                 if(readIntChoice()!=1){
                     cout<<"已取消。"<<endl;
@@ -270,9 +271,9 @@ void ClubManager::applicationMenu(){
             return;
         }
         for(size_t i=0;i<applicantIds.size();i++){
-            cout<<i+1<<". "<<applicantIds[i]<<" "<<nameOf(applicantIds[i])<<endl;
+            cout<<i+1<<"."<<applicantIds[i]<<"  "<<nameOf(applicantIds[i])<<endl;
         }
-        cout<<"0. 返回"<<endl;
+        cout<<"0.返回"<<endl;
         cout<<endl;
         cout<<"请选择申请序号：";
         int choice=readIntChoice();
@@ -300,6 +301,8 @@ void ClubManager::applicantActionMenu(const string& applicantId){
         switch(choice){
             case 1:
                 if(userManager!=nullptr){
+                    cout<<endl;
+                    cout<<"========申请人信息========"<<endl;
                     userManager->showUserInfoById(applicantId);
                 }
                 break;
@@ -371,6 +374,7 @@ void ClubManager::modifyActivity(){
     }
     skipLine();
     cout<<endl;
+    cout<<"========修改活动========"<<endl;
     activityManager->modifyActivity(activityId,clubId);
 }
 void ClubManager::deleteActivity(){

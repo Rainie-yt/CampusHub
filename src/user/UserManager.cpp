@@ -3,6 +3,7 @@
 #include"ClubManager.h"
 #include"Admin.h"
 #include"../common/InputUtils.h"
+#include"../common/TextUtils.h"
 #include<iostream>
 #include<fstream>
 #include<string>
@@ -302,7 +303,7 @@ bool UserManager::registerUser(){
     password=readField("请输入密码：");
     major=readField("请输入专业：",true,true);
     while(true){
-        interestData=readField("请输入兴趣标签（多个兴趣用英文逗号分隔）：",true,false);
+        interestData=readField("请输入兴趣标签（多个兴趣用逗号分隔）：",true,false);
         //把中文逗号统一换成英文逗号，用户两种都能用
         size_t pos;
         while((pos=interestData.find("，"))!=string::npos){
@@ -513,13 +514,15 @@ void UserManager::showAllUsers(){
         if(fields.size()<6){
             continue;
         }
-        cout<<fields[0]<<"  "<<fields[1]<<"  "<<roleName(fields[3]);
+        //按显示宽度补空格，让各列对齐
+        cout<<padText(fields[0],6)<<padText(fields[1],12)<<padText(roleName(fields[3]),12);
         if(statusOf(fields)==USER_FROZEN){
-            cout<<"  已冻结";
+            cout<<"已冻结";
         }
         cout<<endl;
         count++;
     }
+    cout<<endl;
     cout<<"共"<<count<<"个用户"<<endl;
 }
 void UserManager::showUserStatistics(){

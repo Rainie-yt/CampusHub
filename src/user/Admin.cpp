@@ -1,4 +1,5 @@
 #include"Admin.h"
+#include"../common/TextUtils.h"
 #include<iostream>
 #include"../common/InputUtils.h"
 #include"../club/ClubService.h"
@@ -369,7 +370,7 @@ void Admin::deleteClub()
         //原来是负责人、且没有别的已通过社团，就改回普通学生
         if(userManager!=nullptr&&userManager->getUserRole(leaderId)==ROLE_CLUB_MANAGER&&clubService->findClubByLeader(leaderId).empty()){
             if(userManager->changeRole(leaderId,ROLE_STUDENT)){
-                cout<<leaderId<<"已改回普通学生（重新登录后生效）。"<<endl;
+                cout<<leaderId<<"已改回普通学生！（重新登录后生效）"<<endl;
             }
         }
     }
@@ -427,11 +428,21 @@ void Admin::viewActivityInfo()
         cout<<"暂无活动。"<<endl;
         return;
     }
+    //名称列宽度取最长的"名称（类型）"再加2格，名称再长也能对齐
+    int nameW=20;
+    for(const Activity* act:acts){
+        int w=displayWidth(act->getName()+"（"+act->getTypeName()+"）")+2;
+        if(w>nameW){
+            nameW=w;
+        }
+    }
     //每个活动一行：编号、名称、类型、所属社团、审核状态
     for(const Activity* act:acts){
-        cout<<act->getActivityId()<<"  "<<act->getName()<<"（"<<act->getTypeName()<<"）  "
-            <<act->getClubId()<<"  "<<Activity::statusText(act->getStatus())<<endl;
+        //按显示宽度补空格，让各列对齐
+        cout<<padText(act->getActivityId(),6)<<padText(act->getName()+"（"+act->getTypeName()+"）",nameW)
+            <<padText(act->getClubId(),6)<<Activity::statusText(act->getStatus())<<endl;
     }
+    cout<<endl;
     cout<<"共"<<acts.size()<<"个活动"<<endl;
 }
 void Admin::auditActivity()
@@ -455,7 +466,9 @@ void Admin::auditActivity()
         return;
     }
     cout<<endl;
+    cout<<"========活动详情========"<<endl;
     act->showInfo();
+    cout<<endl;
     int choice;
     //输错就重新选，选0可以随时取消
     while(true){
@@ -514,18 +527,24 @@ void Admin::systemStatisticsMenu()
         {
             case 1:
                 if(userManager!=nullptr){
+                    cout<<endl;
+                    cout<<"========用户统计========"<<endl;
                     userManager->showUserStatistics();
                 }
                 break;
 
             case 2:
                 if(clubService!=nullptr){
+                    cout<<endl;
+                    cout<<"========社团统计========"<<endl;
                     cout<<"社团总数："<<clubService->getClubCount()<<endl;
                 }
                 break;
 
             case 3:
                 if(activityManager!=nullptr){
+                    cout<<endl;
+                    cout<<"========活动统计========"<<endl;
                     cout<<"活动总数："<<activityManager->getAllActivities().size()<<endl;
                     cout<<"已通过："<<activityManager->getApprovedActivities().size()<<endl;
                     cout<<"待审核："<<activityManager->getPendingActivities().size()<<endl;

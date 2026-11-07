@@ -2,6 +2,7 @@
 #include "Lecture.h"
 #include "Competition.h"
 #include "Performance.h"
+#include "../common/TextUtils.h"
 #include <algorithm>
 #include <cctype>
 #include <ctime>
@@ -106,11 +107,23 @@ string timeRange(const Activity& a) {
     return s + "~" + e;
 }
 
+// 名称列的宽度：取这一组活动里最长的"名称（类型）"再加2格，名称再长也能对齐
+int nameWidth(const vector<const Activity*>& v) {
+    int w = 20;
+    for (size_t i = 0; i < v.size(); ++i) {
+        int cur = displayWidth(v[i]->getName() + "（" + v[i]->getTypeName() + "）") + 2;
+        if (cur > w) w = cur;
+    }
+    return w;
+}
+
 // 列表中的一行：编号  名称（类型）  时间  已报名/上限人  [状态]
-void printBrief(const Activity& a, const string& suffix = "") {
-    cout << a.getActivityId() << "  " << a.getName() << "（" << a.getTypeName() << "）  "
-         << timeRange(a) << "  " << a.getCur() << "/" << a.getMax() << "人";
-    if (!suffix.empty()) cout << "  " << suffix;
+void printBrief(const Activity& a, int nameW, const string& suffix = "") {
+    // 按显示宽度补空格，让各列对齐（中文占2格）
+    string count = std::to_string(a.getCur()) + "/" + std::to_string(a.getMax()) + "人";
+    cout << padText(a.getActivityId(), 6) << padText(a.getName() + "（" + a.getTypeName() + "）", nameW)
+         << padText(timeRange(a), 24) << padText(count, 10);
+    if (!suffix.empty()) cout << suffix;
     cout << "\n";
 }
 
@@ -314,7 +327,7 @@ bool ActivityManager::modifyActivity(const string& activityId, const string& ope
     if (!operatorClubId.empty() && a->getClubId() != operatorClubId) { cout << "无权限：只能修改本社团的活动。\n"; return false; }
 
     a->showInfo();
-    cout << "以下直接回车表示保持不变。\n";
+    cout << "\n以下直接回车表示保持不变。\n";
     bool changed = false;
 
     string s = readLine("新名称：");
@@ -433,22 +446,25 @@ void ActivityManager::showApprovedActivities() const {
         if (activities[i]->isApproved() && !activities[i]->hasEnded(current)) v.push_back(activities[i].get());
     cout << "========活动列表========\n";
     if (v.empty()) cout << "暂无活动。\n";
-    for (size_t i = 0; i < v.size(); ++i) printBrief(*v[i]);
+    int w = nameWidth(v);
+    for (size_t i = 0; i < v.size(); ++i) printBrief(*v[i], w);
 }
 
 void ActivityManager::showPendingActivities() const {
     vector<const Activity*> v = getPendingActivities();
     cout << "========待审核活动========\n";
     if (v.empty()) cout << "暂无待审核的活动。\n";
-    for (size_t i = 0; i < v.size(); ++i) printBrief(*v[i]);
+    int w = nameWidth(v);
+    for (size_t i = 0; i < v.size(); ++i) printBrief(*v[i], w);
 }
 
 void ActivityManager::showActivitiesByClub(const string& clubId) const {
     vector<const Activity*> v = getActivitiesByClub(clubId);
     cout << "========本社团活动========\n";
     if (v.empty()) cout << "暂无活动。\n";
+    int w = nameWidth(v);
     for (size_t i = 0; i < v.size(); ++i) {
-        printBrief(*v[i], Activity::statusText(v[i]->getStatus()));
+        printBrief(*v[i], w, Activity::statusText(v[i]->getStatus()));
     }
 }
 
@@ -513,20 +529,24 @@ bool ActivityManager::cancelActivity(const string& userId, const string& activit
 }
 
 void ActivityManager::showMyActivities(const string& userId) const {
-    cout << "========我的活动========\n";
-    bool any = false;
+    cout << "========我的报名活动========\n";
+    // 先找出报名或候补的活动，算好名称列宽度再输出
+    vector<const Activity*> mine;
     for (size_t i = 0; i < activities.size(); ++i) {
         const Activity& a = *activities[i];
+        if (a.hasParticipant(userId) || a.inWaitList(userId)) mine.push_back(&a);
+    }
+    int w = nameWidth(mine);
+    for (size_t i = 0; i < mine.size(); ++i) {
+        const Activity& a = *mine[i];
         if (a.hasParticipant(userId)) {
-            printBrief(a, a.hasEnded(now()) ? "已报名（已结束）" : "已报名");
-            any = true;
-        } else if (a.inWaitList(userId)) {
+            printBrief(a, w, a.hasEnded(now()) ? "已报名（已结束）" : "已报名");
+        } else {
             size_t pos = std::find(a.getWaitList().begin(), a.getWaitList().end(), userId) - a.getWaitList().begin();
-            printBrief(a, "候补第" + std::to_string(pos + 1) + "位");
-            any = true;
+            printBrief(a, w, "候补第" + std::to_string(pos + 1) + "位");
         }
     }
-    if (!any) cout << "你还没有报名任何活动。\n";
+    if (mine.empty()) cout << "你还没有报名任何活动。\n";
 }
 
 // ======================= 报名管理 =======================
@@ -540,7 +560,7 @@ void ActivityManager::showRegistration(const string& activityId) const {
         cout << i + 1 << "." << a->getParticipants()[i] << "\n";
     if (a->getParticipants().empty()) cout << "暂无报名。\n";
     if (!a->getWaitList().empty()) {
-        cout << "候补名单：\n";
+        cout << "\n候补名单：\n";
         for (size_t i = 0; i < a->getWaitList().size(); ++i)
             cout << i + 1 << "." << a->getWaitList()[i] << "\n";
     }
@@ -552,6 +572,7 @@ void ActivityManager::manageRegistration(const string& activityId, const string&
     if (!operatorClubId.empty() && a->getClubId() != operatorClubId) { cout << "无权限：只能管理本社团的活动。\n"; return; }
     while (true) {
         showRegistration(activityId);
+        cout << "\n";
         string uid = readLine("请输入要移除的用户Id（直接回车返回）：");
         if (uid.empty()) return;
         string promoted;
@@ -561,6 +582,7 @@ void ActivityManager::manageRegistration(const string& activityId, const string&
         } else {
             cout << "移除失败：该用户不在名单中，或活动已结束。\n";
         }
+        cout << "\n";
     }
 }
 
