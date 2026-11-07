@@ -187,7 +187,16 @@ void Student::joinActivityMenu(){
     }
     cout<<endl;
     activityManager->showApprovedActivities();
-    if(activityManager->getApprovedActivities().empty()){
+    //和列表的规则一致：只看已通过且还没结束的活动，一个都没有就不用再问编号
+    bool hasOpen=false;
+    string current=activityManager->now();
+    for(const Activity* act:activityManager->getApprovedActivities()){
+        if(!act->hasEnded(current)){
+            hasOpen=true;
+            break;
+        }
+    }
+    if(!hasOpen){
         return;
     }
     cout<<endl;
