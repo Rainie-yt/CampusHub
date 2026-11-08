@@ -126,8 +126,9 @@ void Admin::deleteUser(){
         return;
     }
     //负责人要先删社团，否则社团会没有负责人
-    if(role==ROLE_CLUB_MANAGER||(clubService!=nullptr&&!clubService->findClubByLeader(targetId).empty())){
-        cout<<"该用户是社团负责人，请先删除其社团后再删除用户！"<<endl;
+    //待审核社团的申请人也算，用findAnyClubByLeader一起查出来
+    if(role==ROLE_CLUB_MANAGER||(clubService!=nullptr&&!clubService->findAnyClubByLeader(targetId).empty())){
+        cout<<"该用户是社团负责人或正在申请成立社团，请先处理其社团后再删除用户！"<<endl;
         return;
     }
     cout<<"确认删除 "<<targetId<<" "<<userManager->getUserNameById(targetId)<<" 吗？1.确认  0.取消"<<endl;
@@ -300,9 +301,11 @@ void Admin::clubManageMenu(){
     }
 }
 void Admin::viewClubInfo(){
+    cout<<endl;
     clubService->showAllClubs();
 }
 void Admin::auditClub(){
+    cout<<endl;
     clubService->showAllClubs();
     string clubId;
     cout<<endl;
@@ -344,6 +347,7 @@ void Admin::auditClub(){
 }
 void Admin::deleteClub()
 {
+    cout<<endl;
     clubService->showAllClubs();
     string clubId;
     cout<<endl;
@@ -519,6 +523,7 @@ void Admin::systemStatisticsMenu()
         cout<<"1.用户数量统计"<<endl;
         cout<<"2.社团数量统计"<<endl;
         cout<<"3.活动数量统计"<<endl;
+        cout<<"4.社团活跃度排行"<<endl;
         cout<<"0.返回上一级菜单"<<endl;
         cout<<endl;
         cout<<"请选择：";
@@ -548,6 +553,14 @@ void Admin::systemStatisticsMenu()
                     cout<<"活动总数："<<activityManager->getAllActivities().size()<<endl;
                     cout<<"已通过："<<activityManager->getApprovedActivities().size()<<endl;
                     cout<<"待审核："<<activityManager->getPendingActivities().size()<<endl;
+                }
+                break;
+
+            case 4:
+                //活跃度用活动模块的真实数据计算，由社团模块排序和显示
+                if(clubService!=nullptr&&activityManager!=nullptr){
+                    cout<<endl;
+                    clubService->showActivityRank(clubService->getActivityRank(*activityManager));
                 }
                 break;
 

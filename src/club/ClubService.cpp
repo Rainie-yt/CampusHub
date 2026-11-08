@@ -1,5 +1,6 @@
 ﻿#include"ClubService.h"
 #include"../activity/ActivityManager.h"
+#include"../common/TextUtils.h"
 #include<iostream>
 #include<fstream>
 #include"SportsClub.h"
@@ -106,10 +107,21 @@ void ClubService::showAllClubs()const
 {
 	if (clubs.empty())
 	{
+		cout << "========社团列表========" << endl;
 		cout << "暂无社团。" << endl;
 		return;
 	}
 	cout << "========社团列表========" << endl;
+	//名称列宽度取最长的"名称（类型）"再加2格，让各列对齐
+	int nameWidth = 20;
+	for (int i = 0; i < clubs.size(); i++)
+	{
+		int w = displayWidth(clubs[i]->getClubName() + "（" + clubs[i]->getType() + "）") + 2;
+		if (w > nameWidth)
+		{
+			nameWidth = w;
+		}
+	}
 	for (int i = 0; i < clubs.size(); i++)
 	{
 		string statusText = clubs[i]->getStatus();
@@ -125,12 +137,12 @@ void ClubService::showAllClubs()const
 		{
 			statusText = "已拒绝";
 		}
-		cout << clubs[i]->getClubId() << " "
-			<< clubs[i]->getClubName() << "（"
-			<< clubs[i]->getType() << "） "
-			<< clubs[i]->getLeaderId() << " "
-		<<  statusText << endl;
+		cout << padText(clubs[i]->getClubId(), 6)
+			<< padText(clubs[i]->getClubName() + "（" + clubs[i]->getType() + "）", nameWidth)
+			<< padText(clubs[i]->getLeaderId(), 6)
+			<< statusText << endl;
 	}
+	cout << endl;
 	cout << "共" << clubs.size() << "个社团" << endl;
 }
 void ClubService::showClubInfo(const string& clubId)const
@@ -1038,23 +1050,37 @@ bool ClubService::addActivityRankRecord(vector<ClubActivityBrief>& rankList,
 void ClubService::showActivityRank
 (const vector<ClubActivityBrief>& rankList)const
 {
+	cout << "========社团活跃度排行========" << endl;
 	if (rankList.empty())
 	{
-		cout << "暂无社团活跃度排行数据。" << endl;
+		cout << "暂无已通过的社团。" << endl;
 		return;
 	}
-	cout << "=======社团活跃度排行榜=======" << endl;
+	//名称列宽度取最长的社团名称再加2格
+	int nameWidth = 12;
 	for (int i = 0; i < rankList.size(); i++)
 	{
-		cout << "-------" << endl;
-		cout << "名次：" << i + 1 << endl;
-		cout << "编号：" << rankList[i].clubId << endl;
-		cout << "名称：" << rankList[i].clubName << endl;
-		cout << "成员人数：" << rankList[i].memberCount << endl;
-		cout << "活动数量：" << rankList[i].activityCount << endl;
-		cout << "报名总人次：" << rankList[i].registrationCount << endl;
-		cout << "活跃度分数：" << rankList[i].score << endl;
+		int w = displayWidth(rankList[i].clubName) + 2;
+		if (w > nameWidth)
+		{
+			nameWidth = w;
+		}
 	}
+	//第一行是表头，下面每个社团一行
+	cout << padText("名次", 6) << padText("编号", 6) << padText("名称", nameWidth)
+		<< padText("成员数", 8) << padText("活动数", 8) << padText("报名人次", 10) << "活跃度" << endl;
+	for (int i = 0; i < rankList.size(); i++)
+	{
+		cout << padText(to_string(i + 1), 6)
+			<< padText(rankList[i].clubId, 6)
+			<< padText(rankList[i].clubName, nameWidth)
+			<< padText(to_string(rankList[i].memberCount), 8)
+			<< padText(to_string(rankList[i].activityCount), 8)
+			<< padText(to_string(rankList[i].registrationCount), 10)
+			<< rankList[i].score << endl;
+	}
+	cout << endl;
+	cout << "活跃度 = 成员数 + 活动数×10 + 报名人次×2" << endl;
 }
 vector<ClubActivityBrief> ClubService::getActivityRank(const ActivityManager&activityManager)const
 {
