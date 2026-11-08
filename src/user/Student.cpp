@@ -64,6 +64,7 @@ void Student::showInfoMenu(){
         cout<<"专业："<<major<<endl;
         cout<<"兴趣标签：";
         showInterests();
+        cout<<endl;
         cout<<"1.修改密码"<<endl;
         cout<<"2.管理兴趣标签"<<endl;
         cout<<"0.返回上一级菜单"<<endl;
@@ -186,7 +187,16 @@ void Student::joinActivityMenu(){
     }
     cout<<endl;
     activityManager->showApprovedActivities();
-    if(activityManager->getApprovedActivities().empty()){
+    //和列表的规则一致：只看已通过且还没结束的活动，一个都没有就不用再问编号
+    bool hasOpen=false;
+    string current=activityManager->now();
+    for(const Activity* act:activityManager->getApprovedActivities()){
+        if(!act->hasEnded(current)){
+            hasOpen=true;
+            break;
+        }
+    }
+    if(!hasOpen){
         return;
     }
     cout<<endl;
@@ -203,7 +213,9 @@ void Student::joinActivityMenu(){
     }
     //先显示详情（含地点等），确认后再报名
     cout<<endl;
+    cout<<"========活动详情========"<<endl;
     act->showInfo();
+    cout<<endl;
     cout<<"确认报名该活动吗？1.确认  0.取消"<<endl;
     cout<<"请选择：";
     if(readIntChoice()!=1){
@@ -222,6 +234,7 @@ void Student::showMyActivityMenu()
     while(true){
         cout<<endl;
         activityManager->showMyActivities(userId);
+        cout<<endl;
         cout<<"我的积分："<<activityManager->getUserPoints(userId)<<"（参加的活动结束后计入）"<<endl;
         cout<<endl;
         cout<<"1.取消报名"<<endl;
@@ -424,9 +437,12 @@ void Student::browseClubs()const{
     for(const ClubBrief& club:clubs){
         printClubRow(club);
     }
+    cout<<endl;
     cout<<"共"<<clubs.size()<<"个社团"<<endl;
 }
 void Student::searchClubs(const string& keyword)const{
+    cout<<endl;
+    cout<<"========搜索结果========"<<endl;
     bool found=false;
     for(const ClubBrief& club:clubService->getApprovedClubBriefs()){
         if(club.clubName.find(keyword)!=string::npos){
