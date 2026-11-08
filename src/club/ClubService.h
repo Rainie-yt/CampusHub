@@ -147,6 +147,9 @@ public:
 	//查找用户负责的、已审核通过的社团
 	//没有找到时返回空字符串
 	string findClubByLeader(const string& userId)const;
+	//查询用户负责的社团，包括待审核和已通过的社团，不包括被拒绝的社团
+	// 没有找到时返回空字符串
+	string findAnyClubByLeader(const string& userId)const;
 	//返回全部社团数量，包括待审核、已通过和被拒绝的社团
 	int getClubCount()const;
 	//返回所以审核通过社团的资料副本

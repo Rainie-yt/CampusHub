@@ -109,15 +109,29 @@ void ClubService::showAllClubs()const
 		cout << "暂无社团。" << endl;
 		return;
 	}
+	cout << "========社团列表========" << endl;
 	for (int i = 0; i < clubs.size(); i++)
 	{
-		cout << "------------" << endl;
-		cout << "编号：" << clubs[i]->getClubId() << endl;
-		cout << "名称：" << clubs[i]->getClubName() << endl;
-		cout << "简介：" << clubs[i]->getDescription() << endl;
-		cout << "负责人：" << clubs[i]->getLeaderId() << endl;
-		cout << "审核状态：" << clubs[i]->getStatus() << endl;
+		string statusText = clubs[i]->getStatus();
+		if(statusText=="pending")
+		{
+			statusText = "待审核";
+		}
+		else if (statusText == "approved")
+		{
+			statusText = "已通过";
+		}
+		else if (statusText == "rejected")
+		{
+			statusText = "已拒绝";
+		}
+		cout << clubs[i]->getClubId() << " "
+			<< clubs[i]->getClubName() << "（"
+			<< clubs[i]->getType() << "） "
+			<< clubs[i]->getLeaderId() << " "
+		<<  statusText << endl;
 	}
+	cout << "共" << clubs.size() << "个社团" << endl;
 }
 void ClubService::showClubInfo(const string& clubId)const
 {
@@ -138,7 +152,20 @@ void ClubService::showClubInfo(const string& clubId)const
 	cout << "名称：" << clubs[index]->getClubName() << endl;
 	cout << "简介：" << clubs[index]->getDescription() << endl;
 	cout << "负责人：" << clubs[index]->getLeaderId() << endl;
-	cout << "审核状态：" << clubs[index]->getStatus() << endl;
+	string statusText = clubs[index]->getStatus();
+	if(statusText=="pending")
+	{
+		statusText = "待审核";
+	}
+	else if (statusText == "approved")
+	{
+		statusText = "已通过";
+	}
+	else if (statusText == "rejected")
+	{
+		statusText = "已拒绝";
+	}
+	cout << "审核状态：" <<statusText << endl;
 }
 bool ClubService::modifyClubInfo(const string& operatorId, const string& clubId, const string& newName, const string& newDescription)
 {
@@ -418,7 +445,7 @@ void ClubService::showMyClubs(const string& userId)const
 	}
 	if (found == false)
 	{
-		cout << "您尚未加入任何社团。" << endl;
+		cout << "你尚未加入任何社团。" << endl;
 	}
 }
 void ClubService::showApprovedClubs()const
@@ -679,6 +706,19 @@ string ClubService::findClubByLeader(const string& userId)const
 	for (int i = 0; i < clubs.size(); i++)
 	{
 		if (clubs[i]->getLeaderId() == userId && clubs[i]->getStatus() == "approved")
+		{
+			return clubs[i]->getClubId();
+		}
+	}
+	return "";
+}
+string ClubService::findAnyClubByLeader(const string& userId)const
+{
+	for(int i = 0; i < clubs.size(); i++)
+	{
+		if (clubs[i]->getLeaderId() == userId 
+			&& (clubs[i]->getStatus() == "pending"
+			||clubs[i]->getStatus()=="approved"))
 		{
 			return clubs[i]->getClubId();
 		}
