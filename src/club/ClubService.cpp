@@ -1,4 +1,5 @@
 ﻿#include"ClubService.h"
+#include"../activity/ActivityManager.h"
 #include<iostream>
 #include<fstream>
 #include"SportsClub.h"
@@ -924,4 +925,113 @@ void ClubService::searchApprovedClubByLeader(const string& leaderId)const
 		return;
 	}
 	showClubInfo(clubId);
+}
+int ClubService::calculateActivityScore(int memberCount,
+	int activityCount, int registrationCount)const
+{
+	if (memberCount < 0 || activityCount < 0 || registrationCount < 0)
+	{
+		return -1;
+	}
+	int score = memberCount
+		+ activityCount * 10
+		+ registrationCount * 2;
+	return score;
+}
+void ClubService::sortActivityRank(vector<ClubActivityBrief>& rankList)const
+{
+	//先记录数量，避免后面的减法涉及无符号数
+	int count = 0;
+	for (int i = 0; i < rankList.size(); i++)
+	{
+		count++;
+	}
+	for (int i = 0; i < count - 1; i++)
+	{
+		for (int j = 0; j < count - 1 - i; j++)
+		{
+			if (rankList[j].score < rankList[j + 1].score)
+			{
+				ClubActivityBrief temp = rankList[j];
+				rankList[j] = rankList[j + 1];
+				rankList[j + 1] = temp;
+			}
+		}
+	}
+}
+bool ClubService::addActivityRankRecord(vector<ClubActivityBrief>& rankList,
+	const string& clubId, int activityCount,
+	int registrationCount)const
+{
+	int index = findClubIndex(clubId);
+	if (index == -1)
+	{
+		return false;
+	}
+	if (clubs[index]->getStatus() != "approved")
+	{
+		return false;
+	}
+	if (activityCount < 0 || registrationCount < 0)
+	{
+		return false;
+	}
+	//同一个列表中不能重复添加同一个社团
+	for (int i = 0; i < rankList.size(); i++)
+	{
+		if (rankList[i].clubId == clubId)
+		{
+			return false;
+		}
+	}
+	ClubActivityBrief record;
+	record.clubId = clubs[index]->getClubId();
+	record.clubName = clubs[index]->getClubName();
+	record.memberCount = clubs[index]->getMemberCount();
+	record.activityCount = activityCount;
+	record.registrationCount = registrationCount;
+	record.score = calculateActivityScore(record.memberCount,
+		record.activityCount, record.registrationCount);
+	rankList.push_back(record);
+	return true;
+}
+void ClubService::showActivityRank
+(const vector<ClubActivityBrief>& rankList)const
+{
+	if (rankList.empty())
+	{
+		cout << "暂无社团活跃度排行数据。" << endl;
+		return;
+	}
+	cout << "=======社团活跃度排行榜=======" << endl;
+	for (int i = 0; i < rankList.size(); i++)
+	{
+		cout << "-------" << endl;
+		cout << "名次：" << i + 1 << endl;
+		cout << "编号：" << rankList[i].clubId << endl;
+		cout << "名称：" << rankList[i].clubName << endl;
+		cout << "成员人数：" << rankList[i].memberCount << endl;
+		cout << "活动数量：" << rankList[i].activityCount << endl;
+		cout << "报名总人次：" << rankList[i].registrationCount << endl;
+		cout << "活跃度分数：" << rankList[i].score << endl;
+	}
+}
+vector<ClubActivityBrief> ClubService::getActivityRank(const ActivityManager&activityManager)const
+{
+	vector<ClubActivityBrief>rankList;
+	for (int i = 0; i < clubs.size(); i++)
+	{
+		//只统计已审核通过的社团
+		if (clubs[i]->getStatus() == "approved")
+		{
+			string clubId = clubs[i]->getClubId();
+			//调用C模块提供的真实统计接口
+			int activityCount = activityManager.getActivityCount(clubId);
+			int registrationCount = activityManager.getParticipantCount(clubId);
+			addActivityRankRecord(rankList, clubId,
+				activityCount, registrationCount);
+		}
+	}
+	sortActivityRank(rankList);
+	return rankList;
 }

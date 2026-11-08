@@ -2,6 +2,7 @@
 #include<vector>
 #include"club.h"
 using namespace std;
+class ActivityManager;
 //提供给其他模块的社团简要资料
 struct ClubBrief
 {
@@ -12,6 +13,15 @@ struct ClubBrief
 	string extraInfo;
 	string leaderId;
 	int memberCount;
+};
+struct ClubActivityBrief
+{
+	string clubId;
+	string clubName;
+	int memberCount;
+	int activityCount;
+	int registrationCount;
+	int score;
 };
 //社团管理模块
 //各菜单公用一个clubService，通过引用传递，不允许复制
@@ -169,4 +179,15 @@ public:
 	//成功后替换申请名单，失败保留原数据
 	//不存在的社团、负责人本人、已是社团成员或重复申请均视为错误
 	bool loadApplications(const string& fileName);
+
+	//------社团活跃度-------
+	int calculateActivityScore(int memberCount,
+		int activityCount,int registrationCount)const;
+	void sortActivityRank(vector<ClubActivityBrief>& rankList)const;
+	bool addActivityRankRecord(vector<ClubActivityBrief>&rankList,const string& clubId, 
+		int activityCount, int registrationCount)const;
+	void showActivityRank(const vector<ClubActivityBrief>& rankList)const;
+	//使用活动模块的真实数据生成已通过社团的活跃度排行榜
+	vector<ClubActivityBrief> getActivityRank(
+		const ActivityManager& activityManager)const;
 };
