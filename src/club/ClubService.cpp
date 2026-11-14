@@ -1,6 +1,8 @@
-﻿#include"ClubService.h"
+#include"ClubService.h"
 #include"../activity/ActivityManager.h"
 #include"../common/TextUtils.h"
+#include"../common/FileStore.h"
+#include<sstream>
 #include<iostream>
 #include<fstream>
 #include"SportsClub.h"
@@ -53,7 +55,7 @@ bool ClubService::addClub(const Club& club)
 		{
 			return false;
 		}
-	}	
+	}
 	//负责人编号不能包含空白字符
 		for (int i = 0; i < leader.length(); i++)
 		{
@@ -133,7 +135,11 @@ void ClubService::showAllClubs()const
 		{
 			statusText = "已通过";
 		}
-		else if (statusText == "rejected")
+		else if (statusText == "dissolved")
+        {
+            statusText = "已解散（历史归档）";
+        }
+        else if (statusText == "rejected")
 		{
 			statusText = "已拒绝";
 		}
@@ -173,7 +179,11 @@ void ClubService::showClubInfo(const string& clubId)const
 	{
 		statusText = "已通过";
 	}
-	else if (statusText == "rejected")
+	else if (statusText == "dissolved")
+        {
+            statusText = "已解散（历史归档）";
+        }
+        else if (statusText == "rejected")
 	{
 		statusText = "已拒绝";
 	}
@@ -272,11 +282,7 @@ bool ClubService::saveClubs(const string& fileName)const
 			}
 		}
 	}
-	ofstream file(fileName);
-	if (!file.is_open())
-	{
-		return false;
-	}
+	ostringstream file;
 	for (int i = 0; i < clubs.size(); i++)
 	{
 		file << clubs[i]->getType() << '\n';
@@ -287,9 +293,9 @@ bool ClubService::saveClubs(const string& fileName)const
 		file << clubs[i]->getLeaderId() << '\n';
 		file << clubs[i]->getStatus() << '\n';
 	}
-	file.close();
+
 	//检测文件操作有没有报告错误，无则返回true，有错误则返回false
-	return !file.fail();
+	return FileStore::write(fileName,file.str());
 }
 bool ClubService::loadClubs(const string& fileName)
 {
@@ -349,7 +355,11 @@ bool ClubService::loadClubs(const string& fileName)
 		{
 			club->audit(false);
 		}
-		else if (savedStatus != "pending")
+		else if (savedStatus == "dissolved")
+        {
+            club->dissolve();
+        }
+        else if (savedStatus != "pending")
 		{
 			delete club;
 			return false;
@@ -374,11 +384,7 @@ bool ClubService::loadClubs(const string& fileName)
 }
 bool ClubService::saveMembers(const string& fileName)const
 {
-	ofstream file(fileName);
-	if (!file.is_open())
-	{
-		return false;
-	}
+	ostringstream file;
 	for (int i = 0; i < clubs.size(); i++)
 	{
 		vector<string>ids = clubs[i]->getMemberIds();
@@ -388,12 +394,12 @@ bool ClubService::saveMembers(const string& fileName)const
 				<< " " << ids[j] << '\n';
 		}
 	}
-	file.close();
+
 	if (file.fail())
 	{
 		return false;
 	}
-	return true;
+	return FileStore::write(fileName,file.str());
 }
 bool ClubService::loadMembers(const string& fileName)
 {
@@ -644,7 +650,7 @@ string ClubService::applyClub(const string& applicantId, const string& type,
 		else if (number.length() == maxNumber.length() && number > maxNumber)
 		{
 			maxNumber = number;
-		}	
+		}
 	}
 	string nextNumber = maxNumber;
 		int position = nextNumber.length() - 1;
@@ -689,7 +695,7 @@ string ClubService::applyClub(const string& applicantId, const string& type,
 			}
 			club = new Club(newId, name, intro, applicantId);
 		}
-		else 
+		else
 		{
 			return"";
 		}
@@ -728,7 +734,7 @@ string ClubService::findAnyClubByLeader(const string& userId)const
 {
 	for(int i = 0; i < clubs.size(); i++)
 	{
-		if (clubs[i]->getLeaderId() == userId 
+		if (clubs[i]->getLeaderId() == userId
 			&& (clubs[i]->getStatus() == "pending"
 			||clubs[i]->getStatus()=="approved"))
 		{
@@ -768,7 +774,7 @@ bool ClubService::approveApplication(const string& operatorId,
 	{
 		return false;
 	}
-	
+
 	//成为正式成员失败时，保留原申请
 	if (clubs[index]->addMember(userId) == false)
 	{
@@ -836,11 +842,7 @@ void ClubService::showMyApplications(const string& userId)const
 }
 bool ClubService::saveApplications(const string& fileName)const
 {
-	ofstream file(fileName);
-	if (!file.is_open())
-	{
-		return false;
-	}
+	ostringstream file;
 	for (int i = 0; i < clubs.size(); i++)
 	{
 		vector<string>applicants = clubs[i]->getApplicantIds();
@@ -849,12 +851,12 @@ bool ClubService::saveApplications(const string& fileName)const
 			file << clubs[i]->getClubId() << " " << applicants[j ]<< '\n';
 		}
 	}
-	file.close();
+
 	if (file.fail())
 	{
 		return false;
 	}
-	return true;
+	return FileStore::write(fileName,file.str());
 }
 bool ClubService::loadApplications(const string& fileName)
 {
@@ -882,7 +884,7 @@ bool ClubService::loadApplications(const string& fileName)
 		if (loadedService.applyToJoin(userId, clubId) == false)
 		{
 			return false;
-		}	
+		}
 	}
 	//同上，不用eof()判断
 	if (file.bad())
@@ -945,10 +947,10 @@ void ClubService::searchApprovedClubsByType(const string& type)const
 {
 	if (type.empty())
 	{
-		cout << "请输入社团类型。" << endl;	
+		cout << "请输入社团类型。" << endl;
 		return;
 	}
-	bool found = false;	
+	bool found = false;
 	for (int i = 0; i < clubs.size(); i++)
 		{
 			if (clubs[i]->getStatus() == "approved"
@@ -1100,4 +1102,22 @@ vector<ClubActivityBrief> ClubService::getActivityRank(const ActivityManager&act
 	}
 	sortActivityRank(rankList);
 	return rankList;
+}
+
+
+void ClubService::copyStateTo(ClubService& target)const{
+    if(&target==this) return;
+    target.clearClubs();
+    for(const Club* club:clubs) target.clubs.push_back(club->clone());
+}
+void ClubService::swapState(ClubService& other){ clubs.swap(other.clubs); }
+string ClubService::getClubStatus(const string& clubId)const{
+    int i=findClubIndex(clubId);
+    return i<0 ? "" : clubs[i]->getStatus();
+}
+bool ClubService::dissolveClub(const string& clubId){
+    int i=findClubIndex(clubId);
+    if(i<0 || clubs[i]->getStatus()=="dissolved") return false;
+    clubs[i]->dissolve();
+    return true;
 }

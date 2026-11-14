@@ -1,5 +1,6 @@
 #pragma once
 #include<string>
+#include<functional>
 using namespace std;
 //前向声明：这里只用到指针，不需要包含完整的头文件，可以减少头文件之间的相互依赖
 class UserManager;
@@ -37,7 +38,10 @@ class User
     //活动模块，由 main 创建后在登录成功时注入，所有角色共用同一个对象
 
     //功能：把社团、成员、加入申请三个文件一起写回，社团数据有变化后调用
-    void saveClubData();
+    //返回值：三个文件都保存成功返回 true；任何一个失败返回 false（失败时已提示用户）
+    bool saveClubData();
+    // 一次跨模块操作的文件统一提交；失败时恢复社团、活动内存。
+    bool persistChange(const std::function<bool()>& change);
 
     public:
     //构造函数。参数：id 用户Id，name 用户名，pwd 密码，rol 角色
@@ -57,7 +61,8 @@ class User
     //功能：设置活动模块指针。参数：am main 中创建的 ActivityManager 对象
     void setActivityManager(ActivityManager* am);
     //功能：修改密码并立即写回文件。参数：newpwd 新密码
-    void changePassword(string newpwd);
+    //返回值：写回成功返回 true；写回失败返回 false，此时密码保持修改前的值
+    bool changePassword(string newpwd);
     //功能：显示用户Id、用户名和中文角色名（虚函数，派生类可以扩展）
     virtual void showInfo()const;
     //功能：显示本角色的菜单并处理选择（纯虚函数，由各派生类实现，体现多态）

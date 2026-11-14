@@ -71,6 +71,10 @@ int main(){
     //活动数据，文件不存在时从空列表开始，修改后自动保存
     ActivityManager activityManager;
     activityManager.load();
+    if(!userManager.reserveHistoricalIds(clubService,activityManager)){
+        cout<<"无法检查或保存历史注销Id，启动已取消，请先检查数据文件权限和格式。"<<endl;
+        return 1;
+    }
     //系统主循环
     while(true){
         //显示主菜单

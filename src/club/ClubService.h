@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include<vector>
 #include"club.h"
 using namespace std;
@@ -43,10 +43,14 @@ private:
 public:
 	//构造、析构函数
 	ClubService();
+    void copyStateTo(ClubService& target)const;
+    void swapState(ClubService& other);
+    bool dissolveClub(const string& clubId);
+    string getClubStatus(const string& clubId)const;
 	~ClubService();
 
 	//-------学生菜单-------
-	
+
 	//显示已审核通过的社团，供学生浏览，直接输出结果
 	void showApprovedClubs()const;
     //按名称关键词搜索已审核通过的社团
@@ -54,7 +58,7 @@ public:
 	void searchApprovedClubs(const string& keyword)const;
 	//按编号显示社团资料，找不到时输出提示，不限制社团的审核状态
 	void showClubInfo(const string& clubId)const;
-	
+
 	//按编号退出社团，社团不存在或用户不是成员时返回false
 	bool leaveClub(const string& userId, const string& clubId);
     //显示指定用户加入的社团，没有加入的社团时输出提示
@@ -73,11 +77,11 @@ public:
 	void searchApprovedClubByLeader(const string& leaderId)const;
 
 	//-------负责人菜单-------
-	
+
 	//修改名称和简介
 	//只有社团负责人可以修改资料
 	//社团不存在或名称无效时返回false，原资料保持不变
-	bool modifyClubInfo(const string&operatorId,const string& clubId, 
+	bool modifyClubInfo(const string&operatorId,const string& clubId,
 		const string& newName, const string& newDescription);
 	//负责人查看成员
 	//查询成功返回true，社团不存在或无权限时返回false
@@ -103,7 +107,7 @@ public:
 		const string& clubId)const;
 
 	//-------创建与管理员操作-------
-	
+
 	//添加社团：编号重复或资料无效时返回false，否则添加并返回true
 	bool addClub(const Club& club);
 	//显示所有社团的基本资料
@@ -126,9 +130,9 @@ public:
 		const string& name, const string& intro, const string& extraInfo);
 
 	//-------公共查询-------
-	
+
 	//查询社团是否存在
-	bool clubExists(const string& clubId)const;	
+	bool clubExists(const string& clubId)const;
 	//查询社团是否审核通过，不存在时也返回false
 	bool isClubApproved(const string& clubId)const;
     //判断用户是否为该社团负责人
@@ -139,7 +143,7 @@ public:
 	int findClubIndex(const string& clubId)const;
 	//按社团编号查看成员
 	// 本方法不检查操作者权限
-	// 负责人菜单应调用showManagedMembers	
+	// 负责人菜单应调用showManagedMembers
 	void showClubMembers(const string& clubId)const;
 	//按社团编号获取负责人编号
 	//社团不存在时返回空字符串
@@ -162,7 +166,7 @@ public:
 	vector<string>getClubApplicantIds(const string& clubId)const;
 
 	//-------文件保存与读取-------
-	
+
 	//保存社团基本资料，成功返回true，失败返回false
 	//每个社团固定七行：类型、分类资料、编号、名称、简介、负责人编号、审核状态
 	bool saveClubs(const string& fileName)const;
@@ -173,7 +177,7 @@ public:
 	bool saveMembers(const string& fileName)const;
 	//必须先读取社团
 	// 从文件恢复成员名单，成功返回true，替换成员名单，失败保留原名单
-	bool loadMembers(const string& fileName);	
+	bool loadMembers(const string& fileName);
 	//保存待审核申请，覆盖同名文件
 	//每行：社团编号 用户编号
 	//成功返回true，失败返回false
@@ -187,7 +191,7 @@ public:
 	int calculateActivityScore(int memberCount,
 		int activityCount,int registrationCount)const;
 	void sortActivityRank(vector<ClubActivityBrief>& rankList)const;
-	bool addActivityRankRecord(vector<ClubActivityBrief>&rankList,const string& clubId, 
+	bool addActivityRankRecord(vector<ClubActivityBrief>&rankList,const string& clubId,
 		int activityCount, int registrationCount)const;
 	void showActivityRank(const vector<ClubActivityBrief>& rankList)const;
 	//使用活动模块的真实数据生成已通过社团的活跃度排行榜

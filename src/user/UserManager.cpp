@@ -8,6 +8,11 @@
 #include<fstream>
 #include<string>
 #include<sstream>
+#include"../common/FileStore.h"
+#include<algorithm>
+#include"../club/ClubService.h"
+#include"../activity/ActivityManager.h"
+#include<set>
 using namespace std;
 /*
 函数名：UserManager（构造函数）
@@ -186,17 +191,9 @@ bool UserManager::updateUser(User* user){
         cout<<"未找到该用户，更新失败！"<<endl;
         return false;
     }
-    ofstream outFile(userFile);
-    if(!outFile.is_open()){
-        cout<<"无法写入用户数据文件！"<<endl;
-        return false;
-    }
-    for(const string& l:lines){
-        outFile<<l<<endl;
-    }
-    outFile.close();
-    return true;
+    return writeLines(lines);
 }
+
 /*
 函数名：userExists
 功能：检查用户Id是否已经存在，存在则不能重复注册
@@ -330,6 +327,18 @@ bool UserManager::registerUser(){
     cout<<endl;
     cout<<"========用户注册========"<<endl;
     userId=readField("请输入用户Id：");
+    vector<string> retiredIds;
+    if(!readRetiredIds(retiredIds)) return false;
+    if(find(retiredIds.begin(),retiredIds.end(),userId)!=retiredIds.end()){
+        cout<<"该用户Id已注销，不能再次注册，请使用新的Id！"<<endl;
+        return false;
+    }
+    string existingText;
+    bool usersExist=false;
+    if(!FileStore::read(userFile,existingText,usersExist)){
+        cout<<"无法读取用户数据，注册已取消！"<<endl;
+        return false;
+    }
     if(userExists(userId)){
         cout<<"该用户Id已存在，请重新注册！"<<endl;
         return false;
@@ -355,15 +364,12 @@ bool UserManager::registerUser(){
     }
     //注册用户默认角色为 Student
     string role="Student";
-    //以追加模式打开文件：ios::app 表示新数据添加在文件末尾，不会覆盖原有用户数据
-    ofstream file(userFile,ios::app);
-    if(!file.is_open()){
-        cout<<"无法打开用户数据文件！"<<endl;
+    if(!existingText.empty()&&existingText.back()!='\n') existingText+='\n';
+    existingText+=userId+"|"+userName+"|"+password+"|"+role+"|"+major+"|"+interestData+"|"+USER_NORMAL+"\n";
+    if(!FileStore::write(userFile,existingText)){
+        cout<<"无法写入用户数据文件，注册失败！"<<endl;
         return false;
     }
-    //写入格式：userId|userName|password|role|major|interests|status
-    file<<userId<<"|"<<userName<<"|"<<password<<"|"<<role<<"|"<<major<<"|"<<interestData<<"|"<<USER_NORMAL<<endl;
-    file.close();
     cout<<"注册成功！"<<endl;
     return true;
 }
@@ -387,7 +393,7 @@ string UserManager::getUserNameById(const string& userId){
             continue;
         }
         vector<string> fields=split(line,'|');
-        if(!fields.empty()&&fields[0]==userId){
+        if(fields.size()>=2&&fields[0]==userId){
             file.close();
             return fields[1];
         }
@@ -441,17 +447,9 @@ bool UserManager::changeRole(const string& userId,const string& newRole){
         cout<<"未找到该用户，修改角色失败！"<<endl;
         return false;
     }
-    ofstream outFile(userFile);
-    if(!outFile.is_open()){
-        cout<<"无法写入用户数据文件！"<<endl;
-        return false;
-    }
-    for(const string& l:lines){
-        outFile<<l<<endl;
-    }
-    outFile.close();
-    return true;
+    return writeLines(lines);
 }
+
 /*
 函数名：showUserInfoById
 功能：按用户Id显示用户的完整信息（不显示密码），负责人查看成员和申请人信息时使用
@@ -509,21 +507,18 @@ bool UserManager::showUserInfoById(const string& userId){
 说明：管理员的几个功能都要先读全部数据，所以把读文件提取成公共函数
 */
 bool UserManager::readLines(vector<string>& lines){
-    ifstream file(userFile);
-    if(!file.is_open()){
+    string text;
+    bool exists=false;
+    if(!FileStore::read(userFile,text,exists)||!exists){
         cout<<"无法打开用户数据文件！"<<endl;
         return false;
     }
+    istringstream file(text);
     string line;
     while(getline(file,line)){
-        if(!line.empty()&&line.back()=='\r'){
-            line.pop_back();
-        }
-        if(!line.empty()){
-            lines.push_back(line);
-        }
+        if(!line.empty()&&line.back()=='\r') line.pop_back();
+        if(!line.empty()) lines.push_back(line);
     }
-    file.close();
     return true;
 }
 /*
@@ -534,15 +529,12 @@ bool UserManager::readLines(vector<string>& lines){
 说明：ofstream 默认以覆盖方式打开文件，原内容会被清空后重新写入
 */
 bool UserManager::writeLines(const vector<string>& lines){
-    ofstream file(userFile);
-    if(!file.is_open()){
+    ostringstream text;
+    for(const string& line:lines) text<<line<<'\n';
+    if(!FileStore::write(userFile,text.str())){
         cout<<"无法写入用户数据文件！"<<endl;
         return false;
     }
-    for(const string& l:lines){
-        file<<l<<endl;
-    }
-    file.close();
     return true;
 }
 /*
@@ -732,23 +724,80 @@ bool UserManager::setUserStatus(const string& userId,const string& status){
           该用户在社团、活动中的数据由调用者（Admin::deleteUser）处理。
 */
 bool UserManager::deleteUser(const string& userId){
-    vector<string> lines;
-    if(!readLines(lines)){
-        return false;
-    }
+    vector<string> lines,retired;
+    if(!readLines(lines)||!readRetiredIds(retired)) return false;
     vector<string> kept;
     bool found=false;
     for(const string& line:lines){
         vector<string> fields=split(line,'|');
-        if(!fields.empty()&&fields[0]==userId){
-            found=true;
-            //跳过这一行，相当于删除
-            continue;
-        }
-        kept.push_back(line);
+        if(!fields.empty()&&fields[0]==userId) found=true;
+        else kept.push_back(line);
     }
-    if(!found){
+    if(!found) return false;
+    if(find(retired.begin(),retired.end(),userId)==retired.end()) retired.push_back(userId);
+    ostringstream userText, retiredText;
+    for(const string& line:kept) userText<<line<<'\n';
+    for(const string& id:retired) retiredText<<id<<'\n';
+    FileStore::Writes writes;
+    writes.push_back(make_pair(retiredIdFile,retiredText.str()));
+    writes.push_back(make_pair(userFile,userText.str()));
+    return FileStore::write(writes);
+}
+
+bool UserManager::readRetiredIds(vector<string>& ids){
+    string text;
+    bool exists=false;
+    if(!FileStore::read(retiredIdFile,text,exists)){
+        cout<<"无法读取已注销Id名单，操作已取消！"<<endl;
         return false;
     }
-    return writeLines(kept);
+    // 兼容旧项目：名单尚不存在时从空名单开始；删除用户时与 users.txt 一起提交。
+    istringstream input(text);
+    string id;
+    while(getline(input,id)){
+        if(!id.empty()&&id.back()=='\r') id.pop_back();
+        if(id.empty()) continue;
+        if(containsSpace(id)||id.find('|')!=string::npos){
+            cout<<"已注销Id名单格式错误，操作已取消！"<<endl;
+            return false;
+        }
+        ids.push_back(id);
+    }
+    return true;
+}
+
+bool UserManager::reserveHistoricalIds(const ClubService& clubs,const ActivityManager& activities){
+    vector<string> retired;
+    if(!readRetiredIds(retired)) return false;
+    string text;
+    bool exists=false;
+    if(!FileStore::read(userFile,text,exists)) return false;
+    istringstream input(text);
+    string line;
+    set<string> active,known;
+    while(getline(input,line)){
+        auto fields=split(line,'|');
+        if(fields.size()>=6) active.insert(fields[0]);
+    }
+    for(const Activity* a:activities.getAllActivities()){
+        for(const string& uid:a->getParticipants()) known.insert(uid);
+        for(const string& uid:a->getWaitList()) known.insert(uid);
+    }
+    for(const ClubBrief& c:clubs.getApprovedClubBriefs()){
+        known.insert(c.leaderId);
+        for(const string& uid:clubs.getClubMemberIds(c.clubId)) known.insert(uid);
+        for(const string& uid:clubs.getClubApplicantIds(c.clubId)) known.insert(uid);
+    }
+    bool changed=false;
+    for(const string& uid:known){
+        if(!uid.empty()&&!active.count(uid)&&find(retired.begin(),retired.end(),uid)==retired.end()){
+            if(containsSpace(uid)||uid.find('|')!=string::npos) return false;
+            retired.push_back(uid);
+            changed=true;
+        }
+    }
+    if(!changed) return true;
+    ostringstream saved;
+    for(const string& uid:retired) saved<<uid<<'\n';
+    return FileStore::write(retiredIdFile,saved.str());
 }

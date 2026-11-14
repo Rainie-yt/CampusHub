@@ -3,6 +3,7 @@
 #include "Competition.h"
 #include "Performance.h"
 #include "../common/TextUtils.h"
+#include "../common/FileStore.h"
 #include <algorithm>
 #include <cctype>
 #include <ctime>
@@ -149,6 +150,7 @@ string joinResultText(JoinResult r) {
         case JoinResult::NOT_FOUND: return "未找到该活动！";
         case JoinResult::NOT_APPROVED: return "活动尚未通过审核！";
         case JoinResult::ENDED: return "活动已结束！";
+        case JoinResult::SAVE_FAILED: return "保存失败，报名未生效，请稍后重试！";
     }
     return "未知结果";
 }
@@ -174,8 +176,10 @@ string ActivityManager::now() const {
 
 string ActivityManager::generateId() { return std::to_string(nextId++); }
 
-void ActivityManager::autoSaveIfNeeded() const {
-    if (autoSave && !save()) cerr << "警告：活动数据保存失败，请确认 data 目录存在。\n";
+bool ActivityManager::autoSaveIfNeeded() const {
+    if(!autoSave || save()) return true;
+    cerr<<"活动数据保存失败，本次修改未保存。\n";
+    return false;
 }
 
 std::unique_ptr<Activity> ActivityManager::makeActivity(
@@ -261,30 +265,32 @@ bool ActivityManager::load() {
 }
 
 bool ActivityManager::save() const {
-    std::ofstream fout(activityFile.c_str());
-    std::ofstream rout(regFile.c_str());
-    if (!fout || !rout) return false;
-    for (size_t i = 0; i < activities.size(); ++i) {
-        const Activity& a = *activities[i];
-        fout << a.toFileString() << "\n";
-        for (size_t j = 0; j < a.getParticipants().size(); ++j)
-            rout << a.getParticipants()[j] << "|" << a.getActivityId() << "|registered\n";
-        for (size_t j = 0; j < a.getWaitList().size(); ++j)
-            rout << a.getWaitList()[j] << "|" << a.getActivityId() << "|waitlist\n";
+    std::ostringstream fout,rout;
+    for(const auto& entry:activities){
+        const Activity& a=*entry;
+        fout<<a.toFileString()<<'\n';
+        for(const string& uid:a.getParticipants()) rout<<uid<<'|'<<a.getActivityId()<<"|registered\n";
+        for(const string& uid:a.getWaitList()) rout<<uid<<'|'<<a.getActivityId()<<"|waitlist\n";
     }
-    fout.close();
-    rout.close();
-    return !fout.fail() && !rout.fail();
+    FileStore::Writes writes;
+    writes.push_back(std::make_pair(activityFile,fout.str()));
+    writes.push_back(std::make_pair(regFile,rout.str()));
+    return FileStore::write(writes);
 }
 
 // ======================= 活动管理 =======================
 
 string ActivityManager::addActivity(std::unique_ptr<Activity> act) {
-    if (!act || !act->isValid()) return "";
-    act->activityId = generateId();
-    string id = act->getActivityId();
+    if(!act || !act->isValid()) return "";
+    int previousId=nextId;
+    act->activityId=generateId();
+    string id=act->getActivityId();
     activities.push_back(std::move(act));
-    autoSaveIfNeeded();
+    if(!autoSaveIfNeeded()){
+        activities.pop_back();
+        nextId=previousId;
+        return "";
+    }
     return id;
 }
 
@@ -326,8 +332,11 @@ bool ActivityManager::modifyActivity(const string& activityId, const string& ope
     if (!a) { cout << "未找到该活动！\n"; return false; }
     if (!operatorClubId.empty() && a->getClubId() != operatorClubId) { cout << "无权限：只能修改本社团的活动。\n"; return false; }
 
+    if(a->hasEnded(now())) { cout<<"已结束活动保留为历史，不能修改。\n"; return false; }
+    ActivityManager previous;
+    copyStateTo(previous);
     a->showInfo();
-    cout << "\n以下直接回车表示保持不变。\n";
+    cout << "\n以下直接回车表示保持不变；修改成功后需重新审核，已有报名和候补保留。\n";
     bool changed = false;
 
     string s = readLine("新名称：");
@@ -344,8 +353,7 @@ bool ActivityManager::modifyActivity(const string& activityId, const string& ope
             cout << "人数上限无效（必须大于 0 且不小于当前报名人数），该项未修改。\n";
         } else {
             changed = true;
-            vector<string> promoted = promoteWaiting(*a);   // 名额增加后候补自动递补
-            for (size_t i = 0; i < promoted.size(); ++i) cout << "候补用户 " << promoted[i] << " 已递补入选。\n";
+            // 改动将重新送审，候补在审核通过后再递补。
         }
     }
 
@@ -363,8 +371,9 @@ bool ActivityManager::modifyActivity(const string& activityId, const string& ope
     }
 
     if (changed) {
-        autoSaveIfNeeded();
-        cout << "活动信息修改成功！\n";
+        a->setStatus("pending");
+        if(!autoSaveIfNeeded()) { swapState(previous); return false; }
+        cout << "活动信息已修改并重新提交审核，已有报名和候补保留，审核通过前暂停新报名。\n";
     } else {
         cout << "没有任何修改。\n";
     }
@@ -378,21 +387,27 @@ bool ActivityManager::deleteActivity(const string& activityId, const string& ope
 }
 
 bool ActivityManager::removeActivity(const string& activityId) {
-    for (size_t i = 0; i < activities.size(); ++i) {
-        if (activities[i]->getActivityId() == activityId) {
-            activities.erase(activities.begin() + i);
-            autoSaveIfNeeded();
-            return true;
+    for(size_t i=0;i<activities.size();++i){
+        if(activities[i]->getActivityId()!=activityId) continue;
+        std::unique_ptr<Activity> old=std::move(activities[i]);
+        activities.erase(activities.begin()+i);
+        if(!autoSaveIfNeeded()){
+            activities.insert(activities.begin()+i,std::move(old));
+            return false;
         }
+        return true;
     }
     return false;
 }
 
 bool ActivityManager::auditActivity(const string& activityId, bool approve) {
-    Activity* a = findActivity(activityId);
-    if (!a) return false;
-    a->setStatus(approve ? "approved" : "rejected");
-    autoSaveIfNeeded();
+    Activity* a=findActivity(activityId);
+    if(!a || a->getStatus()!="pending" || a->hasEnded(now())) return false;
+    ActivityManager previous;
+    copyStateTo(previous);
+    a->setStatus(approve?"approved":"rejected");
+    if(approve) promoteWaiting(*a);
+    if(!autoSaveIfNeeded()){ swapState(previous); return false; }
     return true;
 }
 
@@ -485,6 +500,8 @@ JoinResult ActivityManager::tryJoin(const string& userId, const string& activity
     if (a->inWaitList(userId)) return JoinResult::ALREADY_WAITING;
     if (findConflict(userId, *a) != nullptr) return JoinResult::CONFLICT;
 
+    ActivityManager previous;
+    copyStateTo(previous);
     JoinResult result;
     if (a->addParticipant(userId)) {
         result = JoinResult::SUCCESS;
@@ -493,7 +510,7 @@ JoinResult ActivityManager::tryJoin(const string& userId, const string& activity
     } else {
         return JoinResult::NOT_FOUND;  // userId 为空等非法情况
     }
-    autoSaveIfNeeded();
+    if(!autoSaveIfNeeded()){ swapState(previous); return JoinResult::SAVE_FAILED; }
     return result;
 }
 
@@ -510,22 +527,19 @@ bool ActivityManager::joinActivity(const string& userId, const string& activityI
     return r == JoinResult::SUCCESS || r == JoinResult::WAITLISTED;
 }
 
-bool ActivityManager::cancelActivity(const string& userId, const string& activityId, string* promotedUser) {
-    if (promotedUser) promotedUser->clear();
-    Activity* a = findActivity(activityId);
-    if (!a || a->hasEnded(now())) return false;
-
-    if (a->removeParticipant(userId)) {
-        vector<string> promoted = promoteWaiting(*a);
-        if (promotedUser && !promoted.empty()) *promotedUser = promoted.front();
-        autoSaveIfNeeded();
-        return true;
-    }
-    if (a->removeWait(userId)) {
-        autoSaveIfNeeded();
-        return true;
-    }
-    return false;
+bool ActivityManager::cancelActivity(const string& userId,const string& activityId,string* promotedUser){
+    if(promotedUser) promotedUser->clear();
+    Activity* a=findActivity(activityId);
+    if(!a || a->hasEnded(now()) || (!a->hasParticipant(userId)&&!a->inWaitList(userId))) return false;
+    ActivityManager previous;
+    copyStateTo(previous);
+    vector<string> promoted;
+    if(a->removeParticipant(userId)){
+        if(a->isApproved()) promoted=promoteWaiting(*a);
+    } else a->removeWait(userId);
+    if(!autoSaveIfNeeded()){ swapState(previous); return false; }
+    if(promotedUser&&!promoted.empty()) *promotedUser=promoted.front();
+    return true;
 }
 
 void ActivityManager::showMyActivities(const string& userId) const {
@@ -539,11 +553,13 @@ void ActivityManager::showMyActivities(const string& userId) const {
     int w = nameWidth(mine);
     for (size_t i = 0; i < mine.size(); ++i) {
         const Activity& a = *mine[i];
+        string auditNote=a.getStatus()=="pending"?"（待审核，暂停新报名）":
+            (a.getStatus()=="rejected"?"（未通过审核，可取消报名）":"");
         if (a.hasParticipant(userId)) {
-            printBrief(a, w, a.hasEnded(now()) ? "已报名（已结束）" : "已报名");
+            printBrief(a, w, (a.hasEnded(now()) ? "已报名（已结束）" : "已报名")+auditNote);
         } else {
             size_t pos = std::find(a.getWaitList().begin(), a.getWaitList().end(), userId) - a.getWaitList().begin();
-            printBrief(a, w, "候补第" + std::to_string(pos + 1) + "位");
+            printBrief(a, w, "候补第" + std::to_string(pos + 1) + "位"+auditNote);
         }
     }
     if (mine.empty()) cout << "你还没有报名任何活动。\n";
@@ -580,7 +596,7 @@ void ActivityManager::manageRegistration(const string& activityId, const string&
             cout << "已移除 " << uid << "！\n";
             if (!promoted.empty()) cout << "候补用户 " << promoted << " 已递补入选。\n";
         } else {
-            cout << "移除失败：该用户不在名单中，或活动已结束。\n";
+            cout << "移除失败：该用户不在名单中、活动已结束或保存失败。\n";
         }
         cout << "\n";
     }
@@ -592,7 +608,7 @@ const Activity* ActivityManager::findConflict(const string& userId, const Activi
     for (size_t i = 0; i < activities.size(); ++i) {
         const Activity& other = *activities[i];
         if (other.getActivityId() == target.getActivityId()) continue;
-        if (!other.isApproved()) continue;
+        // 待重新审核或驳回期间保留的报名也占用时间；用户取消后释放。
         if (!other.hasParticipant(userId) && !other.inWaitList(userId)) continue;
         if (other.overlaps(target)) return &other;
     }
@@ -669,4 +685,45 @@ int ActivityManager::getParticipantCount(const string& clubId) const {
     for (size_t i = 0; i < activities.size(); ++i)
         if (activities[i]->isApproved() && activities[i]->getClubId() == clubId) n += activities[i]->getCur();
     return n;
+}
+
+
+void ActivityManager::copyStateTo(ActivityManager& target) const {
+    if(&target==this) return;
+    target.activities.clear();
+    target.nextId=nextId;
+    for(const auto& entry:activities){
+        const Activity& a=*entry;
+        auto copy=makeActivity(a.getType(),a.getActivityId(),a.getClubId(),a.getName(),a.getTags(),
+            a.getStartTime(),a.getEndTime(),a.getLocation(),a.getMax(),a.getStatus(),a.getExtra());
+        copy->participants=a.participants;
+        copy->waitList=a.waitList;
+        target.activities.push_back(std::move(copy));
+    }
+}
+void ActivityManager::swapState(ActivityManager& other){
+    activities.swap(other.activities);
+    std::swap(nextId,other.nextId);
+}
+bool ActivityManager::resubmitActivity(const string& activityId,const string& operatorClubId){
+    Activity* a=findActivity(activityId);
+    if(!a || a->getStatus()!="rejected" || a->hasEnded(now()) ||
+       (!operatorClubId.empty()&&a->getClubId()!=operatorClubId)) return false;
+    a->setStatus("pending");
+    if(!autoSaveIfNeeded()){ a->setStatus("rejected"); return false; }
+    return true;
+}
+int ActivityManager::cancelUnendedByClub(const string& clubId){
+    ActivityManager previous;
+    copyStateTo(previous);
+    int count=0;
+    string current=now();
+    for(auto it=activities.begin();it!=activities.end();){
+        if((*it)->getClubId()==clubId&&!(*it)->hasEnded(current)){
+            it=activities.erase(it);
+            ++count;
+        } else ++it;
+    }
+    if(count>0&&!autoSaveIfNeeded()){ swapState(previous); return -1; }
+    return count;
 }

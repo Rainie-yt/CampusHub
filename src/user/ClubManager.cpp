@@ -143,6 +143,7 @@ void ClubManager::activityManageMenu()
         cout<<"3.删除活动"<<endl;
         cout<<"4.查看报名情况"<<endl;
         cout<<"5.管理报名成员"<<endl;
+        cout<<"6.重新提交被驳回活动"<<endl;
         cout<<"0.返回上一级菜单"<<endl;
         cout<<endl;
         cout<<"请选择：";
@@ -165,6 +166,14 @@ void ClubManager::activityManageMenu()
                 break;
             case 5:{
                 manageRegistration();
+                break;
+            }
+            case 6:{
+                string id=selectMyActivity("请输入要重新提交的活动编号：");
+                if(!id.empty()){
+                    if(activityManager->resubmitActivity(id,clubId)) cout<<"已重新提交，请等待管理员审核！"<<endl;
+                    else cout<<"重新提交失败：只支持本社团未结束且被驳回的活动，或文件保存失败。"<<endl;
+                }
                 break;
             }
             case 0:
@@ -196,9 +205,8 @@ void ClubManager::modifyClubInfo(){
     string newName=readLine();
     cout<<"请输入新的社团简介：";
     string newDescription=readLine();
-    if(clubService->modifyClubInfo(userId,clubId,newName,newDescription)){
-        saveClubData();
-        cout<<"社团信息修改成功！"<<endl;
+    if(persistChange([&](){ return clubService->modifyClubInfo(userId,clubId,newName,newDescription) && saveClubData(); })){
+            cout<<"社团信息修改成功！"<<endl;
     }
     else{
         cout<<"修改失败：名称不能为空，且名称和简介不能换行。"<<endl;
@@ -303,9 +311,8 @@ void ClubManager::memberActionMenu(const string& memberId){
                     break;
                 }
                 //社团模块会核对操作者 userId 是否为该社团负责人
-                if(clubService->removeClubMember(userId,clubId,memberId)){
-                    saveClubData();
-                    cout<<"已移除该成员！"<<endl;
+                if(persistChange([&](){ return clubService->removeClubMember(userId,clubId,memberId) && saveClubData(); })){
+                        cout<<"已移除该成员！"<<endl;
                     return;
                 }
                 cout<<"移除失败：该用户不是本社团成员。"<<endl;
@@ -377,17 +384,15 @@ void ClubManager::applicantActionMenu(const string& applicantId){
                 }
                 break;
             case 2:
-                if(clubService->approveApplication(userId,clubId,applicantId)){
-                    saveClubData();
-                    cout<<"已通过，"<<applicantId<<" 成为社团成员！"<<endl;
+                if(persistChange([&](){ return clubService->approveApplication(userId,clubId,applicantId) && saveClubData(); })){
+                        cout<<"已通过，"<<applicantId<<" 成为社团成员！"<<endl;
                     return;
                 }
                 cout<<"操作失败：该用户不在申请名单中。"<<endl;
                 break;
             case 3:
-                if(clubService->rejectApplication(userId,clubId,applicantId)){
-                    saveClubData();
-                    cout<<"已拒绝该申请！"<<endl;
+                if(persistChange([&](){ return clubService->rejectApplication(userId,clubId,applicantId) && saveClubData(); })){
+                        cout<<"已拒绝该申请！"<<endl;
                     return;
                 }
                 cout<<"操作失败：该用户不在申请名单中。"<<endl;
@@ -495,7 +500,7 @@ void ClubManager::deleteActivity(){
         cout<<"活动已删除！"<<endl;
     }
     else{
-        cout<<"删除失败：该活动不存在或不属于本社团。"<<endl;
+        cout<<"删除失败：该活动不存在、不属于本社团或保存失败。"<<endl;
     }
 }
 /*

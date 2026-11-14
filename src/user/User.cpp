@@ -3,6 +3,8 @@
 #include"UserManager.h"
 #include"../club/ClubService.h"
 #include"../common.h"
+#include"../common/FileStore.h"
+#include"../activity/ActivityManager.h"
 using namespace std;
 /*
 函数名：User（构造函数）
@@ -75,13 +77,32 @@ void User::setActivityManager(ActivityManager* am){
     所以用户模块在申请加入、退出社团、审核、删除等操作成功后调用本函数。
     三个文件路径定义在 common.h 中。
 */
-void User::saveClubData(){
-    if(clubService==nullptr){
-        return;
+bool User::saveClubData(){
+    if(clubService==nullptr) return false;
+    if(FileStore::Batch::current()){
+        return clubService->saveClubs(CLUB_FILE)
+            && clubService->saveMembers(MEMBER_FILE)
+            && clubService->saveApplications(APPLICATION_FILE);
     }
-    clubService->saveClubs(CLUB_FILE);
-    clubService->saveMembers(MEMBER_FILE);
-    clubService->saveApplications(APPLICATION_FILE);
+    FileStore::Batch batch;
+    return clubService->saveClubs(CLUB_FILE)
+        && clubService->saveMembers(MEMBER_FILE)
+        && clubService->saveApplications(APPLICATION_FILE) && batch.finish();
+}
+
+bool User::persistChange(const std::function<bool()>& change){
+    if(FileStore::Batch::current()) return change();
+    ClubService oldClubs;
+    ActivityManager oldActivities;
+    if(clubService) clubService->copyStateTo(oldClubs);
+    if(activityManager) activityManager->copyStateTo(oldActivities);
+    FileStore::Batch batch;
+    bool changed=change();
+    if(changed && batch.finish()) return true;
+    if(clubService) clubService->swapState(oldClubs);
+    if(activityManager) activityManager->swapState(oldActivities);
+    if(changed) cout<<"保存失败，本次操作已撤销，原数据保持不变。请检查文件是否只读、被占用或磁盘空间不足。"<<endl;
+    return false;
 }
 /*
 函数名：changePassword
@@ -90,15 +111,21 @@ void User::saveClubData(){
 实现步骤：
     1. 修改对象中的 password；
     2. 调用 UserManager::updateUser() 把这个用户的最新数据写回文件，
-       否则退出程序后修改会丢失。
+       否则退出程序后修改会丢失；写回失败要把密码改回原值并提示失败，不能提示成功。
 */
-void User::changePassword(string newpwd)
+bool User::changePassword(string newpwd)
 {
+    string oldpwd=password;
     password=newpwd;
-    if(userManager!=nullptr){
-        userManager->updateUser(this);
+    //只有写回文件成功才算修改成功；失败时把密码改回去，
+    //否则本次运行里是新密码、文件里是旧密码，下次登录就对不上了
+    if(userManager==nullptr||!userManager->updateUser(this)){
+        password=oldpwd;
+        cout<<"密码修改失败，密码未更改，请稍后重试！"<<endl;
+        return false;
     }
     cout<<"密码修改成功！"<<endl;
+    return true;
 }
 /*
 函数名：showInfo

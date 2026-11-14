@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include  <string>
 #include<vector>
 using namespace std;
@@ -9,7 +9,7 @@ private:
 	string clubName;
 	string description;
 	string leaderId;
-	string status;//审核状态：pending、approved、rejected
+	string status;//审核/归档状态：pending、approved、rejected、dissolved
 	vector<string>memberIds;//社团成员的用户编号
 	vector<string>applicantIds;//待审核的申请人编号
 public:
@@ -31,6 +31,8 @@ public:
 	//passed为true表示通过，false表示拒绝
 	//操作成功返回true，状态不是pending时返回false
 	bool audit(bool passed);
+    // 解散后保留基本资料与编号，清空成员及加入申请。
+    void dissolve();
 	//查询用户是否已在社团中
 	bool hasMember(const string& userId)const;
 	//加入社团：若未审核通过、编号为空或重复加入时返回false

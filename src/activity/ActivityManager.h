@@ -14,6 +14,7 @@ enum class JoinResult {
     ALREADY_WAITING,  // 已在候补名单
     NOT_FOUND,        // 活动不存在
     NOT_APPROVED,     // 活动未通过审核
+    SAVE_FAILED,      // 保存失败，已恢复原状态
     ENDED             // 活动已结束
 };
 
@@ -29,6 +30,10 @@ public:
     // 此时返回 false（其余正常的数据仍会被加载）。
     bool load();
     bool save() const;
+    void copyStateTo(ActivityManager& target) const;
+    void swapState(ActivityManager& other);
+    bool resubmitActivity(const std::string& activityId, const std::string& operatorClubId = "");
+    int cancelUnendedByClub(const std::string& clubId);
     void setAutoSave(bool on) { autoSave = on; }   // 默认开启：每次修改后自动保存
 
     // 测试用：固定“当前时间”（格式同活动时间）。传空串恢复为系统时间。
@@ -120,5 +125,5 @@ private:
     std::string fixedNow;
 
     std::string generateId();
-    void autoSaveIfNeeded() const;
+    bool autoSaveIfNeeded() const;
 };

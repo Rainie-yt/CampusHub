@@ -33,6 +33,8 @@ class UserManager{
     User* login();
     //功能：用户注册（只能注册普通学生）。返回：注册成功返回 true，失败返回 false
     bool registerUser();
+    // 首次升级时保留历史数据中已不存在的用户Id，防止旧注销账号被重新注册。
+    bool reserveHistoricalIds(const ClubService& clubs,const ActivityManager& activities);
     //功能：把用户的最新数据写回 users.txt。参数：user 要保存的用户对象；返回：是否成功
     bool updateUser(User* user);
     //功能：修改指定用户的角色并写回文件，供管理员审核社团、修改角色时使用。参数：userId 用户Id，newRole 新角色
@@ -57,6 +59,8 @@ class UserManager{
     bool deleteUser(const string& userId);
 
     private:
+    string retiredIdFile="data/retired_user_ids.txt";
+    bool readRetiredIds(vector<string>& ids);
     string userFile;  //用户数据文件路径
 
     //功能：字符串分割。参数：str 要分割的字符串，delimiter 分隔符；返回：分割后的各段

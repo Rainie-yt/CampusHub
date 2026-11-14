@@ -7,6 +7,8 @@
 #ifndef INPUT_UTILS_H
 #define INPUT_UTILS_H
 
+#include <cctype>
+#include <cstdlib>
 #include <iostream>
 #include <limits>
 #include <string>
@@ -31,6 +33,13 @@ inline int readIntChoice()
 
     while (!(cin >> choice))
     {
+        //输入流结束（如 Ctrl+Z / Ctrl+D 或管道读完）：再读也读不到东西，
+        //不处理的话会一直打印提示陷入死循环，所以直接结束程序
+        if (cin.eof())
+        {
+            cout << endl << "输入已结束，程序退出。" << endl;
+            exit(0);
+        }
         cin.clear();
         //numeric_limits<streamsize>::max() 表示不限个数，一直丢到换行符为止
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -50,8 +59,28 @@ inline int readIntChoice()
 */
 inline string readLine(){
     string line;
-    getline(cin>>ws,line);
+    if(!getline(cin>>ws,line)){
+        //输入流结束，原因同 readIntChoice：继续读只会得到空串并死循环
+        cout<<endl<<"输入已结束，程序退出。"<<endl;
+        exit(0);
+    }
     return line;
+}
+
+/*
+函数名：containsSpace
+功能：判断字符串中是否含有空白字符（空格、Tab 等）
+说明：登录时用 cin>> 读取用户Id和密码，cin>> 遇到任何空白字符都会截断，
+      所以只检查空格 ' ' 是不够的，含 Tab 的 Id 注册得进去却永远登录不了。
+      isspace 的参数要先转成 unsigned char，否则中文等负值字节会产生未定义行为。
+*/
+inline bool containsSpace(const string& s){
+    for(size_t i=0;i<s.size();i++){
+        if(isspace(static_cast<unsigned char>(s[i]))){
+            return true;
+        }
+    }
+    return false;
 }
 
 /*
@@ -65,7 +94,7 @@ inline string readLine(){
     users.txt 用 | 分隔字段，所以任何内容都不能有 |，否则读文件时字段会错位；
     兴趣标签用逗号分隔，用户Id、密码等字段如果含逗号也会引起混乱，
     所以 allowComma 为 false 时，中文逗号和英文逗号都不允许；
-    allowSpace 为 false 时不能含有空格（用户Id、密码）。
+    allowSpace 为 false 时不能含有空格或 Tab 等空白字符（用户Id、密码）。
 */
 inline string readField(const string& prompt,bool allowComma=false,bool allowSpace=false){
     while(true){
@@ -77,8 +106,8 @@ inline string readField(const string& prompt,bool allowComma=false,bool allowSpa
         else if(!allowComma&&(s.find(',')!=string::npos||s.find("，")!=string::npos)){
             cout<<"不能包含逗号，请重新输入！"<<endl;
         }
-        else if(!allowSpace&&s.find(' ')!=string::npos){
-            cout<<"不能包含空格，请重新输入！"<<endl;
+        else if(!allowSpace&&containsSpace(s)){
+            cout<<"不能包含空格或制表符，请重新输入！"<<endl;
         }
         else{
             return s;

@@ -185,8 +185,11 @@ void Student::addInterest(string interest)
         return;
     }
     interests.push_back(interest);
-    if(userManager!=nullptr){
-        userManager->updateUser(this);
+    //写回失败要撤销刚才的添加，不能提示成功
+    if(userManager==nullptr||!userManager->updateUser(this)){
+        interests.pop_back();
+        cout<<"兴趣标签添加失败，未保存，请稍后重试！"<<endl;
+        return;
     }
     cout<<"兴趣标签添加成功！"<<endl;
 }
@@ -212,9 +215,13 @@ void Student::loadInterest(string interest){
 void Student::removeInterest(string interest){
     auto it=std::find(interests.begin(),interests.end(),interest);
     if(it!=interests.end()){
+        size_t index=it-interests.begin();
         interests.erase(it);
-        if(userManager!=nullptr){
-            userManager->updateUser(this);
+        //写回失败要把标签放回原位置，不能提示成功
+        if(userManager==nullptr||!userManager->updateUser(this)){
+            interests.insert(interests.begin()+index,interest);
+            cout<<"兴趣标签删除失败，未保存，请稍后重试！"<<endl;
+            return;
         }
         cout<<"兴趣标签删除成功！"<<endl;
     }
@@ -345,7 +352,7 @@ void Student::showMyActivityMenu()
             cout<<"已成功取消报名！"<<endl;
         }
         else{
-            cout<<"取消失败：你没有报名该活动，或活动已结束。"<<endl;
+            cout<<"取消失败：你没有报名该活动、活动已结束或保存失败。"<<endl;
         }
     }
 }
@@ -448,9 +455,8 @@ void Student::clubMenu(){
                 string clubId;
                 cout<<"请输入要加入的社团编号：";
                 cin>>clubId;
-                if(clubService->applyToJoin(userId,clubId)){
-                    saveClubData();
-                    cout<<"加入申请已提交，请等待社团负责人审核！"<<endl;
+                if(persistChange([&](){ return clubService->applyToJoin(userId,clubId) && saveClubData(); })){
+                        cout<<"加入申请已提交，请等待社团负责人审核！"<<endl;
                 }
                 else{
                     cout<<"申请失败：社团不存在或未通过审核，或你已是成员、已申请过。"<<endl;
@@ -467,9 +473,8 @@ void Student::clubMenu(){
                 string clubId;
                 cout<<"请输入要退出的社团编号：";
                 cin>>clubId;
-                if(clubService->leaveClub(userId,clubId)){
-                    saveClubData();
-                    cout<<"已成功退出社团！"<<endl;
+                if(persistChange([&](){ return clubService->leaveClub(userId,clubId) && saveClubData(); })){
+                        cout<<"已成功退出社团！"<<endl;
                 }
                 else{
                     cout<<"退出社团失败：社团不存在或你不是该社团成员。"<<endl;
@@ -534,13 +539,18 @@ void Student::applyCreateClub(){
     cout<<"请输入社团简介：";
     string intro=readLine();
     //申请失败时返回空字符串
-    string newId=clubService->applyClub(userId,type,name,intro,extraInfo);
+    string newId;
+    bool saved=persistChange([&](){
+        newId=clubService->applyClub(userId,type,name,intro,extraInfo);
+        return !newId.empty() && saveClubData();
+    });
     if(newId.empty()){
         cout<<"申请失败：资料不合法，或你已经负责一个社团。"<<endl;
         return;
     }
-    saveClubData();
-    cout<<"申请已提交，社团编号为："<<newId<<"，请等待管理员审核！"<<endl;
+    if(saved){
+        cout<<"申请已提交，社团编号为："<<newId<<"，请等待管理员审核！"<<endl;
+    }
 }
 /*
 函数名：browseClubs
