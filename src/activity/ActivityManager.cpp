@@ -4,6 +4,7 @@
 #include "Performance.h"
 #include "../common/TextUtils.h"
 #include "../common/FileStore.h"
+#include "../common/DataFile.h"
 #include <algorithm>
 #include <cctype>
 #include <ctime>
@@ -196,21 +197,18 @@ std::unique_ptr<Activity> ActivityManager::makeActivity(
 }
 
 bool ActivityManager::load() {
-    activities.clear();
-    bool ok = true;
+    // 两个文件均完整读取、校验后才替换，失败保留之前的活动和报名。
+    string activityText, registrationText;
+    if (!DataFile::read(activityFile, activityText) || !DataFile::read(regFile, registrationText)) return false;
+    ActivityManager loaded(activityFile, regFile);
     int maxNum = 3000;
 
     // ---- activities.txt ----
     {
-        std::ifstream fin(activityFile.c_str());
+        std::istringstream fin(activityText);
         string line;
-        int lineNo = 0;
-        while (std::getline(fin, line)) {
-            ++lineNo;
-            if (lineNo == 1 && line.size() >= 3 && static_cast<unsigned char>(line[0]) == 0xEF &&
-                static_cast<unsigned char>(line[1]) == 0xBB && static_cast<unsigned char>(line[2]) == 0xBF)
-                line.erase(0, 3);   // 去掉 UTF-8 BOM
-            if (!line.empty() && line[line.size() - 1] == '\r') line.erase(line.size() - 1);
+        size_t lineNo = 0;
+        while (DataFile::nextLine(fin, line, lineNo)) {
             if (trim(line).empty() || line[0] == '#') continue;
 
             vector<string> f = splitKeep(line, '|');
@@ -220,35 +218,27 @@ bool ActivityManager::load() {
                         (f[9] == "pending" || f[9] == "approved" || f[9] == "rejected");
             if (good) {
                 act = makeActivity(f[2], f[0], f[1], f[3], parseTags(f[4]), f[5], f[6], f[7], maxp, f[9], f[10]);
-                good = act && act->isValid() && findActivity(f[0]) == nullptr;
+                good = act && act->isValid() && loaded.findActivity(f[0]) == nullptr;
             }
             if (!good) {
-                cerr << "警告：" << activityFile << " 第 " << lineNo << " 行格式有误，已跳过。\n";
-                ok = false;
-                continue;
+                return DataFile::error(activityFile, lineNo, "活动字段不完整、类型/时间/人数/状态不合法或编号重复");
             }
             int num = 0;
             if (parseInt(f[0], num) && num > maxNum) maxNum = num;
-            activities.push_back(std::move(act));
+            loaded.activities.push_back(std::move(act));
         }
     }
-    nextId = maxNum + 1;
 
     // ---- registrations.txt ----
     {
-        std::ifstream rin(regFile.c_str());
+        std::istringstream rin(registrationText);
         string line;
-        int lineNo = 0;
-        while (std::getline(rin, line)) {
-            ++lineNo;
-            if (lineNo == 1 && line.size() >= 3 && static_cast<unsigned char>(line[0]) == 0xEF &&
-                static_cast<unsigned char>(line[1]) == 0xBB && static_cast<unsigned char>(line[2]) == 0xBF)
-                line.erase(0, 3);
-            if (!line.empty() && line[line.size() - 1] == '\r') line.erase(line.size() - 1);
+        size_t lineNo = 0;
+        while (DataFile::nextLine(rin, line, lineNo)) {
             if (trim(line).empty() || line[0] == '#') continue;
 
             vector<string> f = splitKeep(line, '|');
-            Activity* a = f.size() == 3 ? findActivity(f[1]) : nullptr;
+            Activity* a = f.size() == 3 ? loaded.findActivity(f[1]) : nullptr;
             bool good = a != nullptr && !f[0].empty();
             if (good) {
                 if (f[2] == "registered") good = a->addParticipant(f[0]);
@@ -256,12 +246,13 @@ bool ActivityManager::load() {
                 else good = false;
             }
             if (!good) {
-                cerr << "警告：" << regFile << " 第 " << lineNo << " 行无效，已跳过。\n";
-                ok = false;
+                return DataFile::error(regFile, lineNo, "报名记录字段、活动编号或状态不合法，或报名/候补重复、超出名额");
             }
         }
     }
-    return ok;
+    activities.swap(loaded.activities);
+    nextId = maxNum + 1;
+    return true;
 }
 
 bool ActivityManager::save() const {
@@ -281,7 +272,7 @@ bool ActivityManager::save() const {
 // ======================= 活动管理 =======================
 
 string ActivityManager::addActivity(std::unique_ptr<Activity> act) {
-    if(!act || !act->isValid()) return "";
+    if(!act || !act->isValid() || act->hasEnded(now())) return "";
     int previousId=nextId;
     act->activityId=generateId();
     string id=act->getActivityId();
@@ -321,8 +312,12 @@ bool ActivityManager::publishActivity(const string& clubId) {
         cout << "活动信息不合法（请检查时间格式，且结束时间必须晚于开始时间），已取消。\n";
         return false;
     }
+    if (act->hasEnded(now())) {
+        cout << "结束时间必须晚于当前时间，活动未提交。\n";
+        return false;
+    }
     string id = addActivity(std::move(act));
-    if (id.empty()) return false;
+    if (id.empty()) { cout << "提交失败：结束时间已到或文件保存失败，活动未提交。\n"; return false; }
     cout << "活动已提交，编号为：" << id << "，请等待管理员审核！\n";
     return true;
 }
@@ -363,14 +358,23 @@ bool ActivityManager::modifyActivity(const string& activityId, const string& ope
         if (!ns.empty() || !ne.empty()) {
             if (ns.empty()) ns = a->getStartTime();
             if (ne.empty()) ne = a->getEndTime();
-            if (a->setTime(ns, ne)) changed = true;
-            else cout << "时间无效（格式错误或结束不晚于开始），该项未修改。\n";
+            if (!Activity::isValidTime(ns) || !Activity::isValidTime(ne) || ne <= ns)
+                cout << "时间无效（格式错误或结束不晚于开始），该项未修改。\n";
+            else if (ne <= now())
+                cout << "结束时间必须晚于当前时间，该项未修改。\n";
+            else if (a->setTime(ns, ne)) changed = true;
         }
     } else {
         cout << "该活动已有人报名或候补，时间不可修改。\n";
     }
 
     if (changed) {
+        // 输入期间也可能到达结束时间，提交前再次检查并撤销本次全部修改。
+        if (a->hasEnded(now())) {
+            swapState(previous);
+            cout << "活动已结束，本次修改未保存。\n";
+            return false;
+        }
         a->setStatus("pending");
         if(!autoSaveIfNeeded()) { swapState(previous); return false; }
         cout << "活动信息已修改并重新提交审核，已有报名和候补保留，审核通过前暂停新报名。\n";
@@ -401,14 +405,21 @@ bool ActivityManager::removeActivity(const string& activityId) {
 }
 
 bool ActivityManager::auditActivity(const string& activityId, bool approve) {
+    return tryAuditActivity(activityId, approve) == AuditResult::SUCCESS;
+}
+
+AuditResult ActivityManager::tryAuditActivity(const string& activityId, bool approve) {
     Activity* a=findActivity(activityId);
-    if(!a || a->getStatus()!="pending" || a->hasEnded(now())) return false;
+    if(!a) return AuditResult::NOT_FOUND;
+    if(a->getStatus()!="pending") return AuditResult::NOT_PENDING;
+    // 过期不能通过，但仍可拒绝以移出待审核列表；不删除历史报名。
+    if(approve && a->hasEnded(now())) return AuditResult::ENDED;
     ActivityManager previous;
     copyStateTo(previous);
     a->setStatus(approve?"approved":"rejected");
     if(approve) promoteWaiting(*a);
-    if(!autoSaveIfNeeded()){ swapState(previous); return false; }
-    return true;
+    if(!autoSaveIfNeeded()){ swapState(previous); return AuditResult::SAVE_FAILED; }
+    return AuditResult::SUCCESS;
 }
 
 // ======================= 查询 =======================
@@ -470,7 +481,9 @@ void ActivityManager::showPendingActivities() const {
     cout << "========待审核活动========\n";
     if (v.empty()) cout << "暂无待审核的活动。\n";
     int w = nameWidth(v);
-    for (size_t i = 0; i < v.size(); ++i) printBrief(*v[i], w);
+    string current = now();
+    for (size_t i = 0; i < v.size(); ++i)
+        printBrief(*v[i], w, v[i]->hasEnded(current) ? "已结束（仅可拒绝）" : "");
 }
 
 void ActivityManager::showActivitiesByClub(const string& clubId) const {

@@ -18,6 +18,9 @@ enum class JoinResult {
     ENDED             // 活动已结束
 };
 
+// 审核结果由业务层统一判断，菜单据此输出准确原因。
+enum class AuditResult { SUCCESS, NOT_FOUND, NOT_PENDING, ENDED, SAVE_FAILED };
+
 std::string joinResultText(JoinResult r);   // 结果的中文说明
 
 class ActivityManager {
@@ -26,8 +29,8 @@ public:
                              const std::string& regFile = "data/registrations.txt");
 
     // ---------- 文件 ----------
-    // 读取两个文件。文件不存在视为空；格式有误的行会被跳过并在 cerr 提示，
-    // 此时返回 false（其余正常的数据仍会被加载）。
+    // 两个文件完整校验后才替换状态。文件不存在视为空；存在但无法读取、
+    // 解析失败时报告文件和行号，返回false并保留原有活动、报名、候补及编号。
     bool load();
     bool save() const;
     void copyStateTo(ActivityManager& target) const;
@@ -41,19 +44,21 @@ public:
     std::string now() const;
 
     // ---------- 活动管理（社团负责人 / 管理员）----------
-    // 添加活动，成功返回新分配的活动编号，对象不合法返回 ""。
+    // 添加活动，成功返回新分配的活动编号，对象不合法或结束时间不晚于当前时间时返回 ""。
     std::string addActivity(std::unique_ptr<Activity> act);
     // 交互式发布活动（社团负责人调用），新活动状态为 pending，等待管理员审核。
     bool publishActivity(const std::string& clubId);
     // 交互式修改活动。接口表只传 activityId；operatorClubId 可选，非空时必须与
     // 活动所属社团一致（额外的权限保护），留空则不检查。
-    // 已有人报名/候补时不允许修改时间，避免破坏已通过的冲突检测。
+    // 已有人报名/候补时不允许修改时间；修改后的结束时间必须晚于当前时间。
     bool modifyActivity(const std::string& activityId, const std::string& operatorClubId = "");
     // 社团负责人删除活动。operatorClubId 的规则同上。
     bool deleteActivity(const std::string& activityId, const std::string& operatorClubId = "");
     // 管理员删除违规活动（不检查社团）。
     bool removeActivity(const std::string& activityId);
-    // 管理员审核：approve=true 通过，false 驳回。
+    // 管理员审核：approve=true 通过，false 驳回。已结束的待审核活动只能驳回。
+    AuditResult tryAuditActivity(const std::string& activityId, bool approve = true);
+    // 保留原有 bool 接口供其他模块调用。
     bool auditActivity(const std::string& activityId, bool approve = true);
 
     // ---------- 查询 ----------

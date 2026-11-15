@@ -44,7 +44,8 @@ void showMainMenu(){
     2. 创建 UserManager（负责登录、注册、读取 users.txt、创建用户对象）；
     3. 创建 ClubService 并读取社团、成员、申请三份数据。
        成员和申请都属于某个社团，所以要先读社团再读这两份；
-    4. 创建 ActivityManager 并读取活动数据；
+    4. 创建 ActivityManager 并读取活动数据；已有文件损坏或无法读取时停止启动，
+       不进入业务菜单、不补写注销名单，避免不完整数据覆盖原文件；
     5. 进入主循环：
        - 选 1 登录：login() 根据角色返回 Student*、ClubManager* 或 Admin*，这里统一用 User* 接收；
          注入社团和活动模块后调用 showMenu()，退出登录后 delete 释放对象；
@@ -58,19 +59,18 @@ int main(){
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
     UserManager userManager;
-    //全程只用这一个ClubService，所有角色共用
+    // 先完整校验所有数据；加载失败时禁止进入菜单，避免不完整数据被保存覆盖。
     ClubService clubService;
-    if(clubService.loadClubs(CLUB_FILE)){
-        //成员和申请都要先有社团，所以放在后面读
-        clubService.loadMembers(MEMBER_FILE);
-        clubService.loadApplications(APPLICATION_FILE);
-    }
-    else{
-        cout<<"提示：未读取到社团数据，将从空列表开始。"<<endl;
-    }
-    //活动数据，文件不存在时从空列表开始，修改后自动保存
     ActivityManager activityManager;
-    activityManager.load();
+    if(!userManager.validateData()
+        || !clubService.loadClubs(CLUB_FILE)
+        || !clubService.loadMembers(MEMBER_FILE)
+        || !clubService.loadApplications(APPLICATION_FILE)
+        || !activityManager.load()){
+        cerr<<"数据加载失败，启动已取消；原数据文件未修改，请修复后重试。"<<endl;
+        return 1;
+    }
+    // 所有业务数据通过校验后，才允许补充历史注销Id名单。
     if(!userManager.reserveHistoricalIds(clubService,activityManager)){
         cout<<"无法检查或保存历史注销Id，启动已取消，请先检查数据文件权限和格式。"<<endl;
         return 1;

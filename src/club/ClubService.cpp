@@ -2,6 +2,7 @@
 #include"../activity/ActivityManager.h"
 #include"../common/TextUtils.h"
 #include"../common/FileStore.h"
+#include"../common/DataFile.h"
 #include<sstream>
 #include<iostream>
 #include<fstream>
@@ -299,11 +300,10 @@ bool ClubService::saveClubs(const string& fileName)const
 }
 bool ClubService::loadClubs(const string& fileName)
 {
-	ifstream file(fileName);
-	if (!file.is_open())
-	{
-		return false;
-	}
+	string text;
+	if (!DataFile::read(fileName, text)) return false;
+	istringstream file(text);
+	size_t lineNo = 0;
 	//暂时读取结果，读取成功后才替换原列表
 	ClubService loadedService;//专门检查读取的资料
 	string type;
@@ -313,13 +313,18 @@ bool ClubService::loadClubs(const string& fileName)
 	string intro;
 	string leader;
 	string savedStatus;
-	while (getline(file,type ))
+	while (DataFile::nextLine(file, type, lineNo))
 	{
-		//编号之后必须还有四行资料
-		if (!getline(file,extraInfo)||!getline(file,id)||!getline(file, name) || !getline(file, intro) || !getline(file, leader) || !getline(file, savedStatus))
-		{
-			return false;
-		}
+		// 只在记录之间忽略空行；记录内部的七行结构仍必须完整。
+		if (DataFile::blank(type)) continue;
+		const size_t recordLine = lineNo;
+		if (!DataFile::nextLine(file, extraInfo, lineNo)
+			|| !DataFile::nextLine(file, id, lineNo)
+			|| !DataFile::nextLine(file, name, lineNo)
+			|| !DataFile::nextLine(file, intro, lineNo)
+			|| !DataFile::nextLine(file, leader, lineNo)
+			|| !DataFile::nextLine(file, savedStatus, lineNo))
+			return DataFile::error(fileName, recordLine, "社团记录不完整，每条记录需要七行");
 		Club* club = nullptr;
 		//根据类型创建对应对象
 		if (type == "体育社团")
@@ -338,13 +343,13 @@ bool ClubService::loadClubs(const string& fileName)
 		{
 			if (!extraInfo.empty())
 			{
-				return false;
+				return DataFile::error(fileName, recordLine + 1, "普通社团的分类资料应为空");
 			}
 			club = new Club(id, name, intro, leader);
 		}
 		else
 		{
-			return false;
+			return DataFile::error(fileName, recordLine, "未知社团类型");
 		}
 		//构造时默认pending，根据文件恢复审核状态
 		if (savedStatus == "approved")
@@ -362,7 +367,7 @@ bool ClubService::loadClubs(const string& fileName)
         else if (savedStatus != "pending")
 		{
 			delete club;
-			return false;
+			return DataFile::error(fileName, recordLine + 6, "未知审核状态");
 		}
 		//addedClub会检查资料，并保存一个独立副本
 		bool added = loadedService.addClub(*club);
@@ -371,13 +376,8 @@ bool ClubService::loadClubs(const string& fileName)
 		club = nullptr;
 		if (added == false)
 		{
-			return false;
+			return DataFile::error(fileName, recordLine, "社团编号重复或基本资料不合法");
 		}
-	}
-	//只把真正的读写错误当作失败；MinGW读到文件末尾时eof()可能不为true，不能用它判断
-	if (file.bad())
-	{
-		return false;
 	}
 	clubs.swap( loadedService.clubs);
 	return true;
@@ -403,11 +403,9 @@ bool ClubService::saveMembers(const string& fileName)const
 }
 bool ClubService::loadMembers(const string& fileName)
 {
-	ifstream file(fileName);
-	if (!file.is_open())
-	{
-		return false;
-	}
+	string text;
+	if (!DataFile::read(fileName, text)) return false;
+	istringstream file(text);
 	ClubService loadedService;
 	//每个社团都创建独立副本，不能直接复制指针列表
 	for (int i = 0; i < clubs.size(); i++)
@@ -415,15 +413,15 @@ bool ClubService::loadMembers(const string& fileName)
 		loadedService.clubs.push_back(clubs[i]->clone());
 		loadedService.clubs[i]->clearMembers();
 	}
-	string clubId;
-	string userId;
-	while (file >> clubId)
+	string line;
+	size_t lineNo = 0;
+	while (DataFile::nextLine(file, line, lineNo))
 	{
-		//读到了社团编号，就必须还能读到用户编号
-		if (!(file >> userId))
-		{
-			return false;
-		}
+		if (DataFile::blank(line)) continue;
+		istringstream row(line);
+		string clubId, userId, extra;
+		if (!(row >> clubId >> userId) || (row >> extra))
+			return DataFile::error(fileName, lineNo, "成员记录应为社团编号和用户编号两项");
 		int index = -1;
 		for (int i = 0; i < loadedService.clubs.size(); i++)
 		{
@@ -435,20 +433,15 @@ bool ClubService::loadMembers(const string& fileName)
 		}
 		if (index == -1)
 		{
-			return false;
+			return DataFile::error(fileName, lineNo, "成员记录指向不存在的社团");
 		}
 		if (loadedService.clubs[index]->addMember(userId) == false)
 		{
-			return false;
+			return DataFile::error(fileName, lineNo, "成员重复、用户编号不合法或社团未通过审核");
 		}
 	}
-	//同上，不用eof()判断
-	if (file.bad())
-		{
-			return false;
-		}
-		clubs.swap( loadedService.clubs);
-		return true;
+	clubs.swap(loadedService.clubs);
+	return true;
 }
 void ClubService::showMyClubs(const string& userId)const
 {
@@ -860,11 +853,9 @@ bool ClubService::saveApplications(const string& fileName)const
 }
 bool ClubService::loadApplications(const string& fileName)
 {
-	ifstream file(fileName);
-	if (!file.is_open())
-	{
-		return false;
-	}
+	string text;
+	if (!DataFile::read(fileName, text)) return false;
+	istringstream file(text);
 	ClubService loadedService;
 	//创建独立副本，只清空副本中的申请名单
 	for (int i = 0; i < clubs.size(); i++)
@@ -872,25 +863,21 @@ bool ClubService::loadApplications(const string& fileName)
 		loadedService.clubs.push_back(clubs[i]->clone());
 		loadedService.clubs[i]->clearApplicants();
 	}
-	string clubId;
-	string userId;
-	while (file >> clubId)
+	string line;
+	size_t lineNo = 0;
+	while (DataFile::nextLine(file, line, lineNo))
 	{
-		if (!(file >> userId))
-		{
-			return false;
-		}
+		if (DataFile::blank(line)) continue;
+		istringstream row(line);
+		string clubId, userId, extra;
+		if (!(row >> clubId >> userId) || (row >> extra))
+			return DataFile::error(fileName, lineNo, "申请记录应为社团编号和用户编号两项");
 		//复用申请入口，检查社团、成员和负责人等规则
 		if (loadedService.applyToJoin(userId, clubId) == false)
 		{
-			return false;
+			return DataFile::error(fileName, lineNo, "社团不存在、未通过审核，或申请人重复、为负责人或已有成员");
 		}
 	}
-	//同上，不用eof()判断
-	if (file.bad())
-		{
-			return false;
-		}
 	clubs.swap(loadedService.clubs);
 	return true;
 }

@@ -9,6 +9,7 @@
 #include<string>
 #include<sstream>
 #include"../common/FileStore.h"
+#include"../common/DataFile.h"
 #include<algorithm>
 #include"../club/ClubService.h"
 #include"../activity/ActivityManager.h"
@@ -21,6 +22,30 @@ using namespace std;
 */
 UserManager::UserManager(){
     userFile="data/users.txt";
+}
+
+bool UserManager::validateData(){
+    string text;
+    if(!DataFile::read(userFile,text)) return false;
+    // 其他账号读取入口按原字段读取，不默默接受会改变Id含义的BOM。
+    if(text.compare(0,3,"\xEF\xBB\xBF")==0)
+        return DataFile::error(userFile,1,"请使用不带BOM的UTF-8保存账号文件");
+    istringstream input(text);
+    string line;
+    size_t number=0;
+    set<string> ids;
+    while(DataFile::nextLine(input,line,number)){
+        if(line.empty()) continue;
+        const vector<string> fields=split(line,'|');
+        if(fields.size()<6 || fields[0].empty() || containsSpace(fields[0])
+            || fields[1].empty() || fields[2].empty() || containsSpace(fields[2])
+            || (fields[3]!="Student" && fields[3]!="ClubManager" && fields[3]!="Admin")
+            || (fields.size()>=7 && fields[6]!=USER_NORMAL && fields[6]!=USER_FROZEN))
+            return DataFile::error(userFile,number,"账号字段不完整或Id、密码、角色、状态不合法");
+        if(!ids.insert(fields[0]).second)
+            return DataFile::error(userFile,number,"用户Id重复");
+    }
+    return true;
 }
 /*
 函数名：split

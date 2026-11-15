@@ -45,6 +45,7 @@ public:
 	ClubService();
     void copyStateTo(ClubService& target)const;
     void swapState(ClubService& other);
+    // 解散并归档：清理成员和申请，保留社团资料；关联活动及角色由管理员协调处理。
     bool dissolveClub(const string& clubId);
     string getClubStatus(const string& clubId)const;
 	~ClubService();
@@ -118,10 +119,10 @@ public:
 	//社团不存在或已审核时返回false
 	//调用前需要检查当前用户是否为管理员
 	bool auditClub(const string& clubId, bool passed);
-	//调用前需检查管理员身份
-	//当前未检查关联活动，需与活动模块整合
-	//删除无成员的社团
-	//社团不存在或仍有成员时返回false
+	// 兼容保留的旧接口，当前业务流程无调用；直接移除无成员的社团资料。
+	// 不检查或处理关联活动、加入申请及负责人角色，勿用于管理员菜单。
+	// 管理员解散流程统一调用 dissolveClub，保留历史归属。
+	// 社团不存在或仍有成员时返回false
 	bool deleteClub(const string& clubId);
 	//申请成立社团，成功返回新编号，失败返回空字符串
 	//一个用户不能同时负责多个待审核或已通过的社团
@@ -171,19 +172,20 @@ public:
 	//每个社团固定七行：类型、分类资料、编号、名称、简介、负责人编号、审核状态
 	bool saveClubs(const string& fileName)const;
 	//从文件读取社团基本资料
-	//成功返回true，替换社团列表，不恢复成员；文件无法打开或资料有错误时返回false，保留原数据
+	//文件不存在时按空列表；存在但读取/解析失败时返回false并报告位置，保留原数据
+	//成功时替换社团列表，不恢复成员；忽略记录之间的空行，记录内部固定七行
 	bool loadClubs(const string& fileName);
 	//保存社团成员关系，成功返回true，失败返回false
 	bool saveMembers(const string& fileName)const;
 	//必须先读取社团
-	// 从文件恢复成员名单，成功返回true，替换成员名单，失败保留原名单
+	// 每行两个编号，空行可忽略；文件不存在按空名单，失败报告行号并保留原名单
 	bool loadMembers(const string& fileName);
 	//保存待审核申请，覆盖同名文件
 	//每行：社团编号 用户编号
 	//成功返回true，失败返回false
 	bool saveApplications(const string& fileName)const;
 	//恢复待审核申请，必须先读取社团和成员
-	//成功后替换申请名单，失败保留原数据
+	//文件不存在按空名单；成功后替换，读取/解析失败报告行号并保留原数据
 	//不存在的社团、负责人本人、已是社团成员或重复申请均视为错误
 	bool loadApplications(const string& fileName);
 

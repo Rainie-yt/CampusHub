@@ -29,6 +29,9 @@ class UserManager{
     public:
     //构造函数，设置用户数据文件路径
     UserManager();
+    // 启动时只读校验账号格式和重复Id；现有文件出错时返回false，不修改文件。
+    // 文件不存在时允许首次注册创建，旧六字段记录仍受支持。
+    bool validateData();
     //功能：用户登录。返回：登录成功返回对应的用户对象指针，失败返回 nullptr
     User* login();
     //功能：用户注册（只能注册普通学生）。返回：注册成功返回 true，失败返回 false

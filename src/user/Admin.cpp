@@ -309,7 +309,7 @@ void Admin::modifyUserRole(){
 }
 /*
 函数名：clubManageMenu
-功能：社团管理子菜单：查看社团信息、审核社团申请、删除违规社团
+功能：社团管理子菜单：查看社团信息、审核社团申请、解散违规社团并保留历史
 说明：这三个功能都要调用社团模块，所以进入菜单前先检查 clubService 是否已设置
 */
 void Admin::clubManageMenu(){
@@ -396,15 +396,14 @@ void Admin::auditClub(){
 }
 /*
 函数名：deleteClub
-功能：删除违规社团，并处理与之相关的活动和负责人角色
+功能：解散违规社团并归档，保留已结束活动、历史报名和积分
+说明：保留旧函数名 deleteClub 以兼容菜单接口，业务调用 dissolveClub。
 实现步骤：
-    1. 显示所有社团，输入要删除的社团编号；
-    2. 删除前先记下负责人Id，因为社团删掉之后就查不到了；
-    3. 调用社团模块的 deleteClub()，社团不存在或还有成员时删除失败；
-    4. 删除成功后保存文件，并删除该社团的所有活动：
-       先把活动编号存到 activityIds 中，再逐个删除，
-       避免一边遍历活动列表一边删除元素导致遍历出错；
-    5. 如果原负责人现在没有其他已通过的社团，就把他的角色改回普通学生。
+    1. 显示社团并读取编号，拒绝不存在或已经解散的社团；
+    2. 确认后清理成员和加入申请，将社团状态改为 dissolved 并保存；
+    3. 取消该社团全部未结束活动及其报名，保留已结束活动与历史积分；
+    4. 原负责人不再负责其他已通过社团时，恢复为普通学生；
+    5. 任一步保存失败，persistChange 恢复社团、活动及用户数据。
 */
 void Admin::deleteClub(){
     clubService->showAllClubs();
@@ -516,7 +515,8 @@ void Admin::viewActivityInfo()
     2. 输入活动编号，检查活动是否存在、是否还是待审核状态；
     3. 显示活动详情，方便管理员判断是否通过；
     4. 循环读入选择：1 通过、2 拒绝、0 取消；
-    5. 调用活动模块的 auditActivity() 修改状态，第二个参数 choice==1 为 true 表示通过。
+    5. 通过时检查社团状态；调用 tryAuditActivity() 统一判断审核结果并提示。
+       已结束的待审核活动只能拒绝；保存失败时恢复状态和名单。
 */
 void Admin::auditActivity()
 {
@@ -534,13 +534,19 @@ void Admin::auditActivity()
     cout<<"请输入要审核的活动编号：";
     cin>>activityId;
     Activity* act=activityManager->findActivity(activityId);
-    if(act==nullptr||act->getStatus()!=STATUS_PENDING){
-        cout<<"审核失败：活动不存在或已经审核过。"<<endl;
+    if(act==nullptr){
+        cout<<"审核失败：活动不存在。"<<endl;
+        return;
+    }
+    if(act->getStatus()!=STATUS_PENDING){
+        cout<<"审核失败：该活动不是待审核状态。"<<endl;
         return;
     }
     cout<<endl;
     cout<<"========活动详情========"<<endl;
     act->showInfo();
+    if(act->hasEnded(activityManager->now()))
+        cout<<"活动已结束，不能通过审核；请选择拒绝以移出待审核列表。"<<endl;
     cout<<endl;
     int choice;
     //输错就重新选，选0可以随时取消
@@ -557,13 +563,27 @@ void Admin::auditActivity()
         }
         cout<<"无效的选择，请重新输入！"<<endl;
     }
-    if(clubService && !clubService->isClubApproved(act->getClubId())){
-        cout<<"活动所属社团未通过审核或已经解散，不能审核该活动。"<<endl;
+    if(choice==1 && clubService && !clubService->isClubApproved(act->getClubId())){
+        cout<<"活动所属社团未通过审核或已经解散，不能通过该活动；仍可选择拒绝。"<<endl;
         return;
     }
-    if(activityManager->auditActivity(activityId,choice==1))
-        cout<<(choice==1?"活动已通过审核！":"已拒绝该活动！")<<endl;
-    else cout<<"审核失败：活动已结束、状态变化或文件保存失败。"<<endl;
+    switch(activityManager->tryAuditActivity(activityId,choice==1)){
+        case AuditResult::SUCCESS:
+            cout<<(choice==1?"活动已通过审核！":"已拒绝该活动！")<<endl;
+            break;
+        case AuditResult::NOT_FOUND:
+            cout<<"审核失败：活动不存在。"<<endl;
+            break;
+        case AuditResult::NOT_PENDING:
+            cout<<"审核失败：该活动不是待审核状态。"<<endl;
+            break;
+        case AuditResult::ENDED:
+            cout<<"审核失败：活动已结束，不能通过；可重新选择拒绝以移出待审核列表。"<<endl;
+            break;
+        case AuditResult::SAVE_FAILED:
+            cout<<"审核失败：文件保存失败，原审核状态和报名名单已保留。"<<endl;
+            break;
+    }
 }
 /*
 函数名：removeActivity
