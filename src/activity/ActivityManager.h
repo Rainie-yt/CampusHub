@@ -51,7 +51,7 @@ std::string joinResultText(JoinResult r);   // 结果的中文说明
 class ActivityManager {
 public:
     explicit ActivityManager(const std::string& actFile = "data/activities.txt",
-                             const std::string& regFile = "data/registrations.txt");
+        const std::string& regFile = "data/registrations.txt");
 
     // ---------- 文件 ----------
     // 读取两个文件。文件不存在视为空；格式有误的行会被跳过并在 cerr 提示，
@@ -78,7 +78,22 @@ public:
     // 管理员删除违规活动（不检查社团）。
     bool removeActivity(const std::string& activityId);
     // 管理员审核：approve=true 通过，false 驳回。
-    bool auditActivity(const std::string& activityId, bool approve = true);
+    // 审核活动。approve 为 true 通过、false 驳回；reason 可选，失败时写回失败原因。
+    // 保存失败时会把状态恢复成修改前，保证"内存与文件一致"。
+    bool auditActivity(const std::string& activityId, bool approve = true, std::string* reason = nullptr);
+
+    // 驳回后的活动重新提交审核（状态改回待审核）。只允许本社团、未结束、已被驳回的活动。
+    bool resubmitActivity(const std::string& activityId, const std::string& clubId);
+
+    // 社团解散时，取消该社团所有未结束的活动（连同其报名记录）；已结束的活动保留，历史积分不受影响。
+    // 返回：被取消的活动数量；保存失败返回 -1，此时内存数据已恢复，没有任何改动。
+    int cancelUnendedByClub(const std::string& clubId);
+
+    // ---- 事务支持（给用户模块 persistChange 用：先备份，失败再换回） ----
+    // 把当前全部活动（含报名、候补）深拷贝到 other。other 原有数据被覆盖。
+    void copyStateTo(ActivityManager& other) const;
+    // 与 other 交换全部活动数据。文件路径、自动保存开关、固定时钟等配置不交换。
+    void swapState(ActivityManager& other);
 
     // ---------- 查询 ----------
     Activity* findActivity(const std::string& activityId);
@@ -103,7 +118,7 @@ public:
     // 取消报名或退出候补。若取消的是正式名额，队首候补自动递补，
     // 递补者的 userId 通过 promotedUser 带回（没有则为空串）。已结束的活动不能取消。
     bool cancelActivity(const std::string& userId, const std::string& activityId,
-                        std::string* promotedUser = nullptr);
+        std::string* promotedUser = nullptr);
     void showMyActivities(const std::string& userId) const;
 
     // ---------- 报名管理（社团负责人）----------
@@ -117,13 +132,13 @@ public:
 
     // 兴趣匹配度 = |交集| / |并集|（Jaccard），范围 0~1。
     static double matchScore(const std::vector<std::string>& interests,
-                             const std::vector<std::string>& tags);
+        const std::vector<std::string>& tags);
     // 推荐：只考虑已通过、未结束、该用户尚未报名/候补、匹配度 > 0 的活动，
     // 按匹配度降序（相同则开始时间早的在前）。userId 可为空。
     std::vector<std::pair<const Activity*, double> >
-    recommend(const std::vector<std::string>& interests, const std::string& userId = "") const;
+        recommend(const std::vector<std::string>& interests, const std::string& userId = "") const;
     void recommendActivity(const std::vector<std::string>& interests,
-                           const std::string& userId = "") const;
+        const std::string& userId = "") const;
 
     // 积分：该用户已报名、已通过审核、且已结束的活动的 calcPoints 之和。
     // （目前以“报名成功且活动已结束”视为参加，没有签到环节。）
@@ -150,4 +165,5 @@ private:
 
     std::string generateId();
     void autoSaveIfNeeded() const;
+    bool persist() const;   // 开启自动保存时写文件，返回是否成功；未开启自动保存视为成功
 };

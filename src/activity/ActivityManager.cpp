@@ -19,140 +19,142 @@ using std::vector;
 
 namespace {
 
-// 按分隔符切分，保留空字段（"a||b" -> {"a","","b"}）
-// 参数：s 原字符串；delim 分隔符；返回：切分后的各段。
-// 说明：必须保留空字段，因为数据文件里 "a||b" 的中间空字段（例如没有奖项）也占一个位置，
-//       如果丢掉空字段，后面的字段位置就全错了。
-vector<string> splitKeep(const string& s, char delim) {
-    vector<string> r;
-    string cur;
-    for (size_t i = 0; i < s.size(); ++i) {
-        if (s[i] == delim) {
-            r.push_back(cur);
-            cur.clear();
-        } else {
-            cur += s[i];
+    // 按分隔符切分，保留空字段（"a||b" -> {"a","","b"}）
+    // 参数：s 原字符串；delim 分隔符；返回：切分后的各段。
+    // 说明：必须保留空字段，因为数据文件里 "a||b" 的中间空字段（例如没有奖项）也占一个位置，
+    //       如果丢掉空字段，后面的字段位置就全错了。
+    vector<string> splitKeep(const string& s, char delim) {
+        vector<string> r;
+        string cur;
+        for (size_t i = 0; i < s.size(); ++i) {
+            if (s[i] == delim) {
+                r.push_back(cur);
+                cur.clear();
+            }
+            else {
+                cur += s[i];
+            }
+        }
+        r.push_back(cur);
+        return r;
+    }
+
+    // 去掉首尾空白。参数：s 原字符串；返回：处理后的新字符串。
+    string trim(const string& s) {
+        size_t b = 0, e = s.size();
+        while (b < e && std::isspace(static_cast<unsigned char>(s[b]))) ++b;
+        while (e > b && std::isspace(static_cast<unsigned char>(s[e - 1]))) --e;
+        return s.substr(b, e - b);
+    }
+
+    // 把 s 中所有的 from 替换成 to（直接修改 s）。
+    // 说明：每替换一次，下一次查找的起点跳到替换内容之后（pos += to.size()），防止 to 里又包含 from 造成死循环。
+    void replaceAll(string& s, const string& from, const string& to) {
+        size_t pos = 0;
+        while ((pos = s.find(from, pos)) != string::npos) {
+            s.replace(pos, from.size(), to);
+            pos += to.size();
         }
     }
-    r.push_back(cur);
-    return r;
-}
 
-// 去掉首尾空白。参数：s 原字符串；返回：处理后的新字符串。
-string trim(const string& s) {
-    size_t b = 0, e = s.size();
-    while (b < e && std::isspace(static_cast<unsigned char>(s[b]))) ++b;
-    while (e > b && std::isspace(static_cast<unsigned char>(s[e - 1]))) --e;
-    return s.substr(b, e - b);
-}
-
-// 把 s 中所有的 from 替换成 to（直接修改 s）。
-// 说明：每替换一次，下一次查找的起点跳到替换内容之后（pos += to.size()），防止 to 里又包含 from 造成死循环。
-void replaceAll(string& s, const string& from, const string& to) {
-    size_t pos = 0;
-    while ((pos = s.find(from, pos)) != string::npos) {
-        s.replace(pos, from.size(), to);
-        pos += to.size();
+    // 解析标签输入：支持英文逗号、中文逗号、顿号
+    // 参数：input 用户输入的一行标签；返回：去空白、去重后的标签列表。
+    // 步骤：先把中文逗号、顿号统一换成英文逗号，再按逗号切分，逐项去首尾空白，非空且不重复才保留。
+    vector<string> parseTags(const string& input) {
+        string t = input;
+        replaceAll(t, "，", ",");
+        replaceAll(t, "、", ",");
+        vector<string> out;
+        vector<string> parts = splitKeep(t, ',');
+        for (size_t i = 0; i < parts.size(); ++i) {
+            string x = trim(parts[i]);
+            if (!x.empty() && std::find(out.begin(), out.end(), x) == out.end()) out.push_back(x);
+        }
+        return out;
     }
-}
 
-// 解析标签输入：支持英文逗号、中文逗号、顿号
-// 参数：input 用户输入的一行标签；返回：去空白、去重后的标签列表。
-// 步骤：先把中文逗号、顿号统一换成英文逗号，再按逗号切分，逐项去首尾空白，非空且不重复才保留。
-vector<string> parseTags(const string& input) {
-    string t = input;
-    replaceAll(t, "，", ",");
-    replaceAll(t, "、", ",");
-    vector<string> out;
-    vector<string> parts = splitKeep(t, ',');
-    for (size_t i = 0; i < parts.size(); ++i) {
-        string x = trim(parts[i]);
-        if (!x.empty() && std::find(out.begin(), out.end(), x) == out.end()) out.push_back(x);
+    // 把字符串解析成整数。参数：s 输入；out 解析结果（输出）；返回：整个字符串都是合法整数才返回 true。
+    // 说明：stoi 遇到 "12abc" 只会解析前面的 12，所以用 pos 检查是否消耗了全部字符；
+    //       遇到完全不是数字或数值过大时 stoi 会抛异常，用 try-catch 接住并返回 false。
+    bool parseInt(const string& s, int& out) {
+        try {
+            size_t pos = 0;
+            int v = std::stoi(s, &pos);
+            if (pos != s.size()) return false;
+            out = v;
+            return true;
+        }
+        catch (...) {
+            return false;
+        }
     }
-    return out;
-}
 
-// 把字符串解析成整数。参数：s 输入；out 解析结果（输出）；返回：整个字符串都是合法整数才返回 true。
-// 说明：stoi 遇到 "12abc" 只会解析前面的 12，所以用 pos 检查是否消耗了全部字符；
-//       遇到完全不是数字或数值过大时 stoi 会抛异常，用 try-catch 接住并返回 false。
-bool parseInt(const string& s, int& out) {
-    try {
-        size_t pos = 0;
-        int v = std::stoi(s, &pos);
-        if (pos != s.size()) return false;
-        out = v;
-        return true;
-    } catch (...) {
-        return false;
+    // 显示提示语并读取一整行输入（可含空格）。参数：prompt 提示语；返回：去首尾空白后的输入，输入流结束时返回空串。
+    string readLine(const string& prompt) {
+        cout << prompt;
+        string line;
+        if (!std::getline(cin, line)) return "";
+        return trim(line);
     }
-}
 
-// 显示提示语并读取一整行输入（可含空格）。参数：prompt 提示语；返回：去首尾空白后的输入，输入流结束时返回空串。
-string readLine(const string& prompt) {
-    cout << prompt;
-    string line;
-    if (!std::getline(cin, line)) return "";
-    return trim(line);
-}
-
-// 反复询问直到输入合法的时间；直接回车返回 ""（表示放弃）
-string askTime(const string& prompt) {
-    while (true) {
-        string s = readLine(prompt);
-        if (s.empty() || Activity::isValidTime(s)) return s;
-        cout << "时间格式应为 YYYY-MM-DD HH:MM（例如 2026-09-25 14:00），请重新输入，直接回车放弃。\n";
+    // 反复询问直到输入合法的时间；直接回车返回 ""（表示放弃）
+    string askTime(const string& prompt) {
+        while (true) {
+            string s = readLine(prompt);
+            if (s.empty() || Activity::isValidTime(s)) return s;
+            cout << "时间格式应为 YYYY-MM-DD HH:MM（例如 2026-09-25 14:00），请重新输入，直接回车放弃。\n";
+        }
     }
-}
 
-// 把 0~1 的小数格式化成百分数字符串，保留 1 位小数，例如 0.667 -> "66.7%"。
-string percent(double score) {
-    std::ostringstream oss;
-    oss << std::fixed << std::setprecision(1) << score * 100 << "%";
-    return oss.str();
-}
-
-// 活动时间显示：同一天写成 "2026-12-01 14:00~16:00"，跨天则完整显示结束时间
-string timeRange(const Activity& a) {
-    const string& s = a.getStartTime();
-    const string& e = a.getEndTime();
-    if (s.substr(0, 10) == e.substr(0, 10)) return s + "~" + e.substr(11);
-    return s + "~" + e;
-}
-
-// 列表中的一行：编号  名称（类型）  时间  已报名/上限人  [状态]
-// 参数：a 要显示的活动；suffix 行末附加的说明（如状态），为空则不显示。
-void printBrief(const Activity& a, const string& suffix = "") {
-    cout << a.getActivityId() << "  " << a.getName() << "（" << a.getTypeName() << "）  "
-         << timeRange(a) << "  " << a.getCur() << "/" << a.getMax() << "人";
-    if (!suffix.empty()) cout << "  " << suffix;
-    cout << "\n";
-}
-
-// 空位出现后，按候补顺序依次递补，返回被递补的 userId
-// 参数：a 要处理的活动；返回：本次被递补的用户编号列表（按递补先后）。
-// 步骤：只要还有空位并且候补名单非空，就取候补队首，把他加入正式名单。循环条件保证不会超员。
-vector<string> promoteWaiting(Activity& a) {
-    vector<string> promoted;
-    while (!a.isFull() && !a.getWaitList().empty()) {
-        string u = a.popWait();
-        if (a.addParticipant(u)) promoted.push_back(u);
+    // 把 0~1 的小数格式化成百分数字符串，保留 1 位小数，例如 0.667 -> "66.7%"。
+    string percent(double score) {
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(1) << score * 100 << "%";
+        return oss.str();
     }
-    return promoted;
-}
+
+    // 活动时间显示：同一天写成 "2026-12-01 14:00~16:00"，跨天则完整显示结束时间
+    string timeRange(const Activity& a) {
+        const string& s = a.getStartTime();
+        const string& e = a.getEndTime();
+        if (s.substr(0, 10) == e.substr(0, 10)) return s + "~" + e.substr(11);
+        return s + "~" + e;
+    }
+
+    // 列表中的一行：编号  名称（类型）  时间  已报名/上限人  [状态]
+    // 参数：a 要显示的活动；suffix 行末附加的说明（如状态），为空则不显示。
+    void printBrief(const Activity& a, const string& suffix = "") {
+        cout << a.getActivityId() << "  " << a.getName() << "（" << a.getTypeName() << "）  "
+            << timeRange(a) << "  " << a.getCur() << "/" << a.getMax() << "人";
+        if (!suffix.empty()) cout << "  " << suffix;
+        cout << "\n";
+    }
+
+    // 空位出现后，按候补顺序依次递补，返回被递补的 userId
+    // 参数：a 要处理的活动；返回：本次被递补的用户编号列表（按递补先后）。
+    // 步骤：只要还有空位并且候补名单非空，就取候补队首，把他加入正式名单。循环条件保证不会超员。
+    vector<string> promoteWaiting(Activity& a) {
+        vector<string> promoted;
+        while (!a.isFull() && !a.getWaitList().empty()) {
+            string u = a.popWait();
+            if (a.addParticipant(u)) promoted.push_back(u);
+        }
+        return promoted;
+    }
 
 }  // namespace
 
 // 把报名结果枚举转成给用户看的提示文字。参数：r 报名结果；返回：对应的中文提示。
 string joinResultText(JoinResult r) {
     switch (r) {
-        case JoinResult::SUCCESS: return "报名成功！";
-        case JoinResult::WAITLISTED: return "活动已满，已加入候补名单！";
-        case JoinResult::CONFLICT: return "与已报名的活动时间冲突！";
-        case JoinResult::ALREADY_JOINED: return "你已报名该活动！";
-        case JoinResult::ALREADY_WAITING: return "你已在该活动的候补名单中！";
-        case JoinResult::NOT_FOUND: return "未找到该活动！";
-        case JoinResult::NOT_APPROVED: return "活动尚未通过审核！";
-        case JoinResult::ENDED: return "活动已结束！";
+    case JoinResult::SUCCESS: return "报名成功！";
+    case JoinResult::WAITLISTED: return "活动已满，已加入候补名单！";
+    case JoinResult::CONFLICT: return "与已报名的活动时间冲突！";
+    case JoinResult::ALREADY_JOINED: return "你已报名该活动！";
+    case JoinResult::ALREADY_WAITING: return "你已在该活动的候补名单中！";
+    case JoinResult::NOT_FOUND: return "未找到该活动！";
+    case JoinResult::NOT_APPROVED: return "活动尚未通过审核！";
+    case JoinResult::ENDED: return "活动已结束！";
     }
     return "未知结果";
 }
@@ -162,7 +164,8 @@ string joinResultText(JoinResult r) {
 // 构造函数。参数：actFile 活动数据文件路径；regFileName 报名数据文件路径。
 // 说明：编号从 3001 开始；默认开启自动保存，每次修改数据后自动写文件。
 ActivityManager::ActivityManager(const string& actFile, const string& regFileName)
-    : nextId(3001), activityFile(actFile), regFile(regFileName), autoSave(true) {}
+    : nextId(3001), activityFile(actFile), regFile(regFileName), autoSave(true) {
+}
 
 // 返回当前时间，格式 "YYYY-MM-DD HH:MM"，与活动时间的格式一致，可直接比较。
 // 说明：fixedNow 不为空时返回它，用于单元测试"固定当前时间"，避免测试结果随真实时间变化。
@@ -237,7 +240,7 @@ bool ActivityManager::load() {
             int maxp = 0;
             std::unique_ptr<Activity> act;
             bool good = f.size() == 11 && !f[0].empty() && parseInt(f[8], maxp) &&
-                        (f[9] == "pending" || f[9] == "approved" || f[9] == "rejected");
+                (f[9] == "pending" || f[9] == "approved" || f[9] == "rejected");
             if (good) {
                 act = makeActivity(f[2], f[0], f[1], f[3], parseTags(f[4]), f[5], f[6], f[7], maxp, f[9], f[10]);
                 good = act && act->isValid() && findActivity(f[0]) == nullptr;
@@ -382,7 +385,8 @@ bool ActivityManager::modifyActivity(const string& activityId, const string& ope
         int m = 0;
         if (!parseInt(s, m) || !a->setMax(m)) {
             cout << "人数上限无效（必须大于 0 且不小于当前报名人数），该项未修改。\n";
-        } else {
+        }
+        else {
             changed = true;
             // 上限调大后出现空位，候补自动递补
             vector<string> promoted = promoteWaiting(*a);   // 名额增加后候补自动递补
@@ -399,14 +403,16 @@ bool ActivityManager::modifyActivity(const string& activityId, const string& ope
             if (a->setTime(ns, ne)) changed = true;
             else cout << "时间无效（格式错误或结束不晚于开始），该项未修改。\n";
         }
-    } else {
+    }
+    else {
         cout << "该活动已有人报名或候补，时间不可修改。\n";
     }
 
     if (changed) {
         autoSaveIfNeeded();
         cout << "活动信息修改成功！\n";
-    } else {
+    }
+    else {
         cout << "没有任何修改。\n";
     }
     return changed;
@@ -434,13 +440,104 @@ bool ActivityManager::removeActivity(const string& activityId) {
     return false;
 }
 
-// 审核活动（管理员用）。参数：activityId 活动编号；approve 为 true 通过、false 驳回。返回：活动存在为 true。
-bool ActivityManager::auditActivity(const string& activityId, bool approve) {
+// 开启自动保存时写文件。返回：写成功（或未开启自动保存）为 true。
+// 与 autoSaveIfNeeded 的区别：本函数把成败返回给调用者，调用者可以据此回滚内存中的修改。
+bool ActivityManager::persist() const {
+    return !autoSave || save();
+}
+
+// 审核活动（管理员用）。
+// 参数：activityId 活动编号；approve 为 true 通过、false 驳回；reason 可选输出，失败时写入失败原因。
+// 返回：成功为 true。
+// 步骤：找到活动 -> 记下旧状态 -> 修改状态 -> 保存；保存失败则恢复旧状态并返回 false，
+//       这样内存和文件始终一致，不会出现"界面显示已通过、文件里还是待审核"。
+bool ActivityManager::auditActivity(const string& activityId, bool approve, string* reason) {
+    if (reason) reason->clear();
     Activity* a = findActivity(activityId);
-    if (!a) return false;
+    if (!a) {
+        if (reason) *reason = "未找到该活动！";
+        return false;
+    }
+    string oldStatus = a->getStatus();
     a->setStatus(approve ? "approved" : "rejected");
-    autoSaveIfNeeded();
+    if (!persist()) {
+        a->setStatus(oldStatus);   // 保存失败，回滚状态
+        if (reason) *reason = "活动数据保存失败，请确认 data 目录存在且文件可写。";
+        return false;
+    }
     return true;
+}
+
+// 被驳回的活动重新提交审核。
+// 参数：activityId 活动编号；clubId 操作者所属社团。返回：成功为 true。
+// 规则：活动必须属于该社团、状态为已驳回、且尚未结束，否则失败。
+// 说明：保存失败同样回滚为"已驳回"。
+bool ActivityManager::resubmitActivity(const string& activityId, const string& clubId) {
+    Activity* a = findActivity(activityId);
+    if (!a || a->getClubId() != clubId) return false;
+    if (a->getStatus() != "rejected" || a->hasEnded(now())) return false;
+    a->setStatus("pending");
+    if (!persist()) {
+        a->setStatus("rejected");
+        return false;
+    }
+    return true;
+}
+
+// 社团解散时取消该社团所有未结束的活动。
+// 参数：clubId 社团编号。返回：被取消的活动数；保存失败返回 -1（内存数据已恢复原样）。
+// 步骤：1) 先把当前状态整体备份；2) 把"属于该社团且未结束"的活动从容器中删除
+//          （报名名单存在活动对象里，随之一起消失）；3) 保存；4) 保存失败则用备份恢复。
+// 说明：已结束的活动不删除，学生的历史积分仍然能算出来。
+int ActivityManager::cancelUnendedByClub(const string& clubId) {
+    ActivityManager backup;
+    copyStateTo(backup);
+
+    string current = now();
+    int cancelled = 0;
+    vector<std::unique_ptr<Activity> > kept;
+    for (size_t i = 0; i < activities.size(); ++i) {
+        if (activities[i]->getClubId() == clubId && !activities[i]->hasEnded(current)) {
+            ++cancelled;                         // 不放进 kept，unique_ptr 离开作用域时释放对象
+        }
+        else {
+            kept.push_back(std::move(activities[i]));
+        }
+    }
+    activities.swap(kept);
+
+    if (cancelled > 0 && !persist()) {
+        swapState(backup);                       // 保存失败：换回备份
+        return -1;
+    }
+    return cancelled;
+}
+
+// 深拷贝全部活动到 other。
+// 参数：other 目标管理器（原有数据会被清空）。
+// 步骤：逐个活动用工厂 makeActivity 按类型创建同类型的新对象，再按顺序复制正式名单和候补名单，
+//       最后复制编号计数器 nextId。必须深拷贝：只拷贝指针会让两个管理器共用同一批对象，备份就失去意义。
+// 说明：先复制正式名单再复制候补名单，因为 addParticipant 会顺带把此人移出候补，顺序反了会丢候补。
+void ActivityManager::copyStateTo(ActivityManager& other) const {
+    other.activities.clear();
+    for (size_t i = 0; i < activities.size(); ++i) {
+        const Activity& a = *activities[i];
+        std::unique_ptr<Activity> c = makeActivity(a.getType(), a.getActivityId(), a.getClubId(), a.getName(),
+            a.getTags(), a.getStartTime(), a.getEndTime(), a.getLocation(),
+            a.getMax(), a.getStatus(), a.getExtra());
+        if (!c) continue;
+        for (size_t j = 0; j < a.getParticipants().size(); ++j) c->addParticipant(a.getParticipants()[j]);
+        for (size_t j = 0; j < a.getWaitList().size(); ++j) c->addWait(a.getWaitList()[j]);
+        other.activities.push_back(std::move(c));
+    }
+    other.nextId = nextId;
+}
+
+// 与 other 交换全部活动数据（活动容器和编号计数器）。
+// 说明：数据文件路径、autoSave、fixedNow 是各管理器自己的配置，不参与交换。
+void ActivityManager::swapState(ActivityManager& other) {
+    activities.swap(other.activities);
+    std::swap(nextId, other.nextId);
 }
 
 // ======================= 查询 =======================
@@ -554,9 +651,11 @@ JoinResult ActivityManager::tryJoin(const string& userId, const string& activity
     JoinResult result;
     if (a->addParticipant(userId)) {
         result = JoinResult::SUCCESS;
-    } else if (a->addWait(userId)) {   // 只会因为已满而走到这里
+    }
+    else if (a->addWait(userId)) {   // 只会因为已满而走到这里
         result = JoinResult::WAITLISTED;
-    } else {
+    }
+    else {
         return JoinResult::NOT_FOUND;  // userId 为空等非法情况
     }
     autoSaveIfNeeded();
@@ -611,7 +710,8 @@ void ActivityManager::showMyActivities(const string& userId) const {
         if (a.hasParticipant(userId)) {
             printBrief(a, a.hasEnded(now()) ? "已报名（已结束）" : "已报名");
             any = true;
-        } else if (a.inWaitList(userId)) {
+        }
+        else if (a.inWaitList(userId)) {
             // 迭代器相减得到下标；下标从 0 开始，显示时加 1 变成"第几位"
             size_t pos = std::find(a.getWaitList().begin(), a.getWaitList().end(), userId) - a.getWaitList().begin();
             printBrief(a, "候补第" + std::to_string(pos + 1) + "位");
@@ -630,7 +730,7 @@ void ActivityManager::showRegistration(const string& activityId) const {
     const Activity* a = findActivity(activityId);
     if (!a) { cout << "未找到该活动！\n"; return; }
     cout << "========报名情况========\n"
-         << a->getName() << "（" << a->getCur() << "/" << a->getMax() << "）\n";
+        << a->getName() << "（" << a->getCur() << "/" << a->getMax() << "）\n";
     for (size_t i = 0; i < a->getParticipants().size(); ++i)
         cout << i + 1 << "." << a->getParticipants()[i] << "\n";
     if (a->getParticipants().empty()) cout << "暂无报名。\n";
@@ -657,7 +757,8 @@ void ActivityManager::manageRegistration(const string& activityId, const string&
         if (cancelActivity(uid, activityId, &promoted)) {
             cout << "已移除 " << uid << "！\n";
             if (!promoted.empty()) cout << "候补用户 " << promoted << " 已递补入选。\n";
-        } else {
+        }
+        else {
             cout << "移除失败：该用户不在名单中，或活动已结束。\n";
         }
     }
@@ -716,10 +817,10 @@ ActivityManager::recommend(const vector<string>& interests, const string& userId
         if (score > 0.0) result.push_back(std::make_pair(&a, score));
     }
     std::stable_sort(result.begin(), result.end(),
-                     [](const std::pair<const Activity*, double>& x, const std::pair<const Activity*, double>& y) {
-                         if (x.second != y.second) return x.second > y.second;
-                         return x.first->getStartTime() < y.first->getStartTime();
-                     });
+        [](const std::pair<const Activity*, double>& x, const std::pair<const Activity*, double>& y) {
+            if (x.second != y.second) return x.second > y.second;
+            return x.first->getStartTime() < y.first->getStartTime();
+        });
     return result;
 }
 
@@ -735,7 +836,7 @@ void ActivityManager::recommendActivity(const vector<string>& interests, const s
     size_t n = std::min<size_t>(r.size(), 5);
     for (size_t i = 0; i < n; ++i) {
         cout << i + 1 << ". [" << r[i].first->getActivityId() << "] " << r[i].first->getName()
-             << "  匹配度 " << percent(r[i].second);
+            << "  匹配度 " << percent(r[i].second);
         if (r[i].first->isFull()) cout << "（已满，可候补）";
         cout << "\n";
     }
