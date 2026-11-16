@@ -1,9 +1,19 @@
-/*
-文件名：ActivityManager.h
-功能：声明活动管理、报名候补、时间冲突检测、兴趣推荐和积分统计的公共接口。
-说明：各角色使用同一个管理器。函数参数和主要处理步骤写在对应 .cpp 的函数前。
-*/
 #pragma once
+// ============================================================
+//  ActivityManager.h  —— 活动管理器（成员 C）
+//
+//  职责：活动增删改查、审核、报名/取消/候补、时间冲突检测、
+//        兴趣推荐、积分统计、文件读写。
+//
+//  数据文件（UTF-8，字段用 '|' 分隔，data 目录需要提前存在）：
+//    activities.txt   id|clubId|type|name|tags|start|end|location|max|status|extra
+//    registrations.txt userId|activityId|registered 或 waitlist
+//  报名名单以 registrations.txt 为准持久化，加载时恢复到各活动对象中；
+//  删除活动时对应的报名记录随之消失，不会留下脏数据。
+//
+//  多态：容器里存的是 unique_ptr<Activity>（基类指针），
+//        所以 Lecture / Competition / Performance 不会被“切片”。
+// ============================================================
 #include <memory>
 #include <string>
 #include <utility>
@@ -19,26 +29,35 @@ enum class JoinResult {
     ALREADY_WAITING,  // 已在候补名单
     NOT_FOUND,        // 活动不存在
     NOT_APPROVED,     // 活动未通过审核
-    SAVE_FAILED,      // 保存失败，已恢复原状态
     ENDED             // 活动已结束
 };
 
 std::string joinResultText(JoinResult r);   // 结果的中文说明
 
+// ============================================================
+//  ActivityManager：活动管理器（活动子系统的对外入口）
+//
+//  职责：保存并管理所有活动对象，提供发布、修改、删除、审核、报名、取消、候补递补、
+//        冲突检测、兴趣推荐、积分统计和文件读写。
+//  与其他类的关系：
+//    - 聚合 Activity：用 vector<unique_ptr<Activity>> 持有活动。存基类指针才能放入
+//      Lecture / Competition / Performance 三种子类对象，避免按值存放造成"对象切片"，
+//      调用虚函数时才能得到子类的行为（多态）。
+//    - 友元：Activity 将本类设为友元，只有本类可以分配活动编号。
+//    - 被调用：用户模块（Student / ClubManager / Admin）和社团模块通过本类的公有接口访问活动数据。
+//  主要属性：activities 全部活动；nextId 下一个活动编号；activityFile / regFile 两个数据文件路径；
+//            autoSave 是否自动保存；fixedNow 固定的"当前时间"（仅测试使用）。
+// ============================================================
 class ActivityManager {
 public:
     explicit ActivityManager(const std::string& actFile = "data/activities.txt",
                              const std::string& regFile = "data/registrations.txt");
 
     // ---------- 文件 ----------
-    // 两个文件完整校验后才替换状态。文件不存在视为空；存在但无法读取、
-    // 解析失败时报告文件和行号，返回false并保留原有活动、报名、候补及编号。
+    // 读取两个文件。文件不存在视为空；格式有误的行会被跳过并在 cerr 提示，
+    // 此时返回 false（其余正常的数据仍会被加载）。
     bool load();
     bool save() const;
-    void copyStateTo(ActivityManager& target) const;
-    void swapState(ActivityManager& other);
-    bool resubmitActivity(const std::string& activityId, const std::string& operatorClubId = "");
-    int cancelUnendedByClub(const std::string& clubId);
     void setAutoSave(bool on) { autoSave = on; }   // 默认开启：每次修改后自动保存
 
     // 测试用：固定“当前时间”（格式同活动时间）。传空串恢复为系统时间。
@@ -46,22 +65,20 @@ public:
     std::string now() const;
 
     // ---------- 活动管理（社团负责人 / 管理员）----------
-    // 添加活动，成功返回新分配的活动编号，对象不合法或结束时间不晚于当前时间时返回 ""。
+    // 添加活动，成功返回新分配的活动编号，对象不合法返回 ""。
     std::string addActivity(std::unique_ptr<Activity> act);
     // 交互式发布活动（社团负责人调用），新活动状态为 pending，等待管理员审核。
     bool publishActivity(const std::string& clubId);
     // 交互式修改活动。接口表只传 activityId；operatorClubId 可选，非空时必须与
     // 活动所属社团一致（额外的权限保护），留空则不检查。
-    // 已有人报名/候补时不允许修改时间；修改后的结束时间必须晚于当前时间。
+    // 已有人报名/候补时不允许修改时间，避免破坏已通过的冲突检测。
     bool modifyActivity(const std::string& activityId, const std::string& operatorClubId = "");
     // 社团负责人删除活动。operatorClubId 的规则同上。
     bool deleteActivity(const std::string& activityId, const std::string& operatorClubId = "");
     // 管理员删除违规活动（不检查社团）。
     bool removeActivity(const std::string& activityId);
-    // approve 为 true 表示通过，false 表示拒绝；已结束的活动只能拒绝。
-    // reason 接收失败原因，成功时清空；不需要原因时可省略，传入时写 &reason。
-    bool auditActivity(const std::string& activityId, bool approve = true,
-                       std::string* reason = nullptr);
+    // 管理员审核：approve=true 通过，false 驳回。
+    bool auditActivity(const std::string& activityId, bool approve = true);
 
     // ---------- 查询 ----------
     Activity* findActivity(const std::string& activityId);
@@ -132,5 +149,5 @@ private:
     std::string fixedNow;
 
     std::string generateId();
-    bool autoSaveIfNeeded() const;
+    void autoSaveIfNeeded() const;
 };
