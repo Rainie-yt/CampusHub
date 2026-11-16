@@ -3,6 +3,8 @@
 #include "Competition.h"
 #include "Performance.h"
 #include "../common/TextUtils.h"
+#include "../common/FileStore.h"
+#include "../common/DataFile.h"
 #include <algorithm>
 #include <cctype>
 #include <ctime>
@@ -149,6 +151,7 @@ string joinResultText(JoinResult r) {
         case JoinResult::NOT_FOUND: return "未找到该活动！";
         case JoinResult::NOT_APPROVED: return "活动尚未通过审核！";
         case JoinResult::ENDED: return "活动已结束！";
+        case JoinResult::SAVE_FAILED: return "保存失败，报名未生效，请稍后重试！";
     }
     return "未知结果";
 }
@@ -174,8 +177,10 @@ string ActivityManager::now() const {
 
 string ActivityManager::generateId() { return std::to_string(nextId++); }
 
-void ActivityManager::autoSaveIfNeeded() const {
-    if (autoSave && !save()) cerr << "警告：活动数据保存失败，请确认 data 目录存在。\n";
+bool ActivityManager::autoSaveIfNeeded() const {
+    if(!autoSave || save()) return true;
+    cerr<<"活动数据保存失败，本次修改未保存。\n";
+    return false;
 }
 
 std::unique_ptr<Activity> ActivityManager::makeActivity(
@@ -191,22 +196,31 @@ std::unique_ptr<Activity> ActivityManager::makeActivity(
     return nullptr;
 }
 
+/*
+函数名：load
+功能：读取活动资料、正式报名和候补名单
+返回值：两个文件都检查通过返回 true；任何一条记录有问题则返回 false。
+实现步骤：
+    1. 完整读取活动文件和报名文件，先放在字符串中；
+    2. 使用临时管理器 loaded 恢复活动，再把报名和候补加入对应活动；
+    3. 检查字段、编号、时间、人数和状态，出错时报告文件名和行号；
+    4. 全部成功后才换入正式列表，并将下一编号设为已有最大编号加 1。
+关键点：不能读到一条就直接改正式列表，否则后面出错时会留下不完整的数据。
+        这里允许读取已经结束的活动，因为它们是需要保留的历史记录。
+*/
 bool ActivityManager::load() {
-    activities.clear();
-    bool ok = true;
+    // 两个文件均完整读取、校验后才替换，失败保留之前的活动和报名。
+    string activityText, registrationText;
+    if (!DataFile::read(activityFile, activityText) || !DataFile::read(regFile, registrationText)) return false;
+    ActivityManager loaded(activityFile, regFile);
     int maxNum = 3000;
 
     // ---- activities.txt ----
     {
-        std::ifstream fin(activityFile.c_str());
+        std::istringstream fin(activityText);
         string line;
-        int lineNo = 0;
-        while (std::getline(fin, line)) {
-            ++lineNo;
-            if (lineNo == 1 && line.size() >= 3 && static_cast<unsigned char>(line[0]) == 0xEF &&
-                static_cast<unsigned char>(line[1]) == 0xBB && static_cast<unsigned char>(line[2]) == 0xBF)
-                line.erase(0, 3);   // 去掉 UTF-8 BOM
-            if (!line.empty() && line[line.size() - 1] == '\r') line.erase(line.size() - 1);
+        size_t lineNo = 0;
+        while (DataFile::nextLine(fin, line, lineNo)) {
             if (trim(line).empty() || line[0] == '#') continue;
 
             vector<string> f = splitKeep(line, '|');
@@ -216,35 +230,27 @@ bool ActivityManager::load() {
                         (f[9] == "pending" || f[9] == "approved" || f[9] == "rejected");
             if (good) {
                 act = makeActivity(f[2], f[0], f[1], f[3], parseTags(f[4]), f[5], f[6], f[7], maxp, f[9], f[10]);
-                good = act && act->isValid() && findActivity(f[0]) == nullptr;
+                good = act && act->isValid() && loaded.findActivity(f[0]) == nullptr;
             }
             if (!good) {
-                cerr << "警告：" << activityFile << " 第 " << lineNo << " 行格式有误，已跳过。\n";
-                ok = false;
-                continue;
+                return DataFile::error(activityFile, lineNo, "活动字段不完整、类型/时间/人数/状态不合法或编号重复");
             }
             int num = 0;
             if (parseInt(f[0], num) && num > maxNum) maxNum = num;
-            activities.push_back(std::move(act));
+            loaded.activities.push_back(std::move(act));
         }
     }
-    nextId = maxNum + 1;
 
     // ---- registrations.txt ----
     {
-        std::ifstream rin(regFile.c_str());
+        std::istringstream rin(registrationText);
         string line;
-        int lineNo = 0;
-        while (std::getline(rin, line)) {
-            ++lineNo;
-            if (lineNo == 1 && line.size() >= 3 && static_cast<unsigned char>(line[0]) == 0xEF &&
-                static_cast<unsigned char>(line[1]) == 0xBB && static_cast<unsigned char>(line[2]) == 0xBF)
-                line.erase(0, 3);
-            if (!line.empty() && line[line.size() - 1] == '\r') line.erase(line.size() - 1);
+        size_t lineNo = 0;
+        while (DataFile::nextLine(rin, line, lineNo)) {
             if (trim(line).empty() || line[0] == '#') continue;
 
             vector<string> f = splitKeep(line, '|');
-            Activity* a = f.size() == 3 ? findActivity(f[1]) : nullptr;
+            Activity* a = f.size() == 3 ? loaded.findActivity(f[1]) : nullptr;
             bool good = a != nullptr && !f[0].empty();
             if (good) {
                 if (f[2] == "registered") good = a->addParticipant(f[0]);
@@ -252,42 +258,68 @@ bool ActivityManager::load() {
                 else good = false;
             }
             if (!good) {
-                cerr << "警告：" << regFile << " 第 " << lineNo << " 行无效，已跳过。\n";
-                ok = false;
+                return DataFile::error(regFile, lineNo, "报名记录字段、活动编号或状态不合法，或报名/候补重复、超出名额");
             }
         }
     }
-    return ok;
+    activities.swap(loaded.activities);
+    nextId = maxNum + 1;
+    return true;
 }
 
 bool ActivityManager::save() const {
-    std::ofstream fout(activityFile.c_str());
-    std::ofstream rout(regFile.c_str());
-    if (!fout || !rout) return false;
-    for (size_t i = 0; i < activities.size(); ++i) {
-        const Activity& a = *activities[i];
-        fout << a.toFileString() << "\n";
-        for (size_t j = 0; j < a.getParticipants().size(); ++j)
-            rout << a.getParticipants()[j] << "|" << a.getActivityId() << "|registered\n";
-        for (size_t j = 0; j < a.getWaitList().size(); ++j)
-            rout << a.getWaitList()[j] << "|" << a.getActivityId() << "|waitlist\n";
+    std::ostringstream fout,rout;
+    for(const auto& entry:activities){
+        const Activity& a=*entry;
+        fout<<a.toFileString()<<'\n';
+        for(const string& uid:a.getParticipants()) rout<<uid<<'|'<<a.getActivityId()<<"|registered\n";
+        for(const string& uid:a.getWaitList()) rout<<uid<<'|'<<a.getActivityId()<<"|waitlist\n";
     }
-    fout.close();
-    rout.close();
-    return !fout.fail() && !rout.fail();
+    FileStore::Writes writes;
+    writes.push_back(std::make_pair(activityFile,fout.str()));
+    writes.push_back(std::make_pair(regFile,rout.str()));
+    return FileStore::write(writes);
 }
 
 // ======================= 活动管理 =======================
 
+/*
+函数名：addActivity
+功能：为新活动分配编号，加入列表并保存
+参数：act 新活动对象；调用后由管理器接管这个对象
+返回值：成功返回新编号；资料不合法、活动已结束或保存失败时返回空字符串。
+实现步骤：
+    1. 检查对象和结束时间；新活动的结束时间必须晚于当前时间；
+    2. 记住原来的下一编号，再分配编号并加入列表；
+    3. 保存失败时移除刚加入的活动，同时恢复编号。
+关键点：这样失败的提交既不会留下半条活动，也不会白白占用一个编号。
+*/
 string ActivityManager::addActivity(std::unique_ptr<Activity> act) {
-    if (!act || !act->isValid()) return "";
-    act->activityId = generateId();
-    string id = act->getActivityId();
+    if(!act || !act->isValid() || act->hasEnded(now())) return "";
+    int previousId=nextId;
+    act->activityId=generateId();
+    string id=act->getActivityId();
     activities.push_back(std::move(act));
-    autoSaveIfNeeded();
+    if(!autoSaveIfNeeded()){
+        activities.pop_back();
+        nextId=previousId;
+        return "";
+    }
     return id;
 }
 
+/*
+函数名：publishActivity
+功能：由社团负责人逐项输入资料，发布一项待审核活动
+参数：clubId 当前负责人所属的社团编号
+返回值：活动成功提交返回 true；资料无效、放弃输入或保存失败返回 false。
+实现步骤：
+    1. 输入活动类型、名称、标签、起止时间、地点、人数和类型特有资料；
+    2. 创建对应活动子类，检查时间格式和结束时间是否晚于开始时间；
+    3. 再检查结束时间是否晚于当前时间，避免提交已经结束的活动；
+    4. 调用 addActivity 分配编号并保存，成功后提示等待管理员审核。
+说明：addActivity 还会检查一次当前时间，防止输入过程中活动刚好结束。
+*/
 bool ActivityManager::publishActivity(const string& clubId) {
     cout << "========发布活动========\n";
     string t = readLine("活动类型（1 讲座  2 比赛  3 演出）：");
@@ -315,19 +347,42 @@ bool ActivityManager::publishActivity(const string& clubId) {
         cout << "活动信息不合法（请检查时间格式，且结束时间必须晚于开始时间），已取消。\n";
         return false;
     }
+    if (act->hasEnded(now())) {
+        cout << "结束时间必须晚于当前时间，活动未提交。\n";
+        return false;
+    }
     string id = addActivity(std::move(act));
-    if (id.empty()) return false;
+    if (id.empty()) {
+        cout << "提交失败：结束时间已到或文件保存失败，活动未提交。\n";
+        return false;
+    }
     cout << "活动已提交，编号为：" << id << "，请等待管理员审核！\n";
     return true;
 }
 
+/*
+函数名：modifyActivity
+功能：修改活动资料，成功后重新提交审核
+参数：activityId 活动编号；operatorClubId 操作者的社团编号，非空时必须与活动所属社团一致
+返回值：有修改且保存成功返回 true；没有修改、无权限、活动已结束或保存失败返回 false。
+实现步骤：
+    1. 检查活动归属和结束时间，再备份当前活动及报名数据；
+    2. 逐项读取新资料，直接回车表示保留原值，不合法的项目不替换原值；
+    3. 没有人报名或候补时才能改时间，新的结束时间必须晚于当前时间；
+    4. 保存前再检查是否过期，然后改为 pending，暂停新报名并等待重新审核；
+    5. 保存失败或填写期间已经过期时，用备份恢复本次修改。
+关键点：修改资料不会删除已有报名和候补；审核通过之前也不提前递补。
+*/
 bool ActivityManager::modifyActivity(const string& activityId, const string& operatorClubId) {
     Activity* a = findActivity(activityId);
     if (!a) { cout << "未找到该活动！\n"; return false; }
     if (!operatorClubId.empty() && a->getClubId() != operatorClubId) { cout << "无权限：只能修改本社团的活动。\n"; return false; }
 
+    if(a->hasEnded(now())) { cout<<"已结束活动保留为历史，不能修改。\n"; return false; }
+    ActivityManager previous;
+    copyStateTo(previous);
     a->showInfo();
-    cout << "\n以下直接回车表示保持不变。\n";
+    cout << "\n以下直接回车表示保持不变；修改成功后需重新审核，已有报名和候补保留。\n";
     bool changed = false;
 
     string s = readLine("新名称：");
@@ -344,8 +399,7 @@ bool ActivityManager::modifyActivity(const string& activityId, const string& ope
             cout << "人数上限无效（必须大于 0 且不小于当前报名人数），该项未修改。\n";
         } else {
             changed = true;
-            vector<string> promoted = promoteWaiting(*a);   // 名额增加后候补自动递补
-            for (size_t i = 0; i < promoted.size(); ++i) cout << "候补用户 " << promoted[i] << " 已递补入选。\n";
+            // 改动将重新送审，候补在审核通过后再递补。
         }
     }
 
@@ -355,16 +409,32 @@ bool ActivityManager::modifyActivity(const string& activityId, const string& ope
         if (!ns.empty() || !ne.empty()) {
             if (ns.empty()) ns = a->getStartTime();
             if (ne.empty()) ne = a->getEndTime();
-            if (a->setTime(ns, ne)) changed = true;
-            else cout << "时间无效（格式错误或结束不晚于开始），该项未修改。\n";
+            // 校验为 YYYY-MM-DD HH:MM 后，各部分固定宽度，可以直接按字符串比较先后。
+            if (!Activity::isValidTime(ns) || !Activity::isValidTime(ne) || ne <= ns) {
+                cout << "时间无效（格式错误或结束不晚于开始），该项未修改。\n";
+            } else if (ne <= now()) {
+                cout << "结束时间必须晚于当前时间，该项未修改。\n";
+            } else if (a->setTime(ns, ne)) {
+                changed = true;
+            }
         }
     } else {
         cout << "该活动已有人报名或候补，时间不可修改。\n";
     }
 
     if (changed) {
-        autoSaveIfNeeded();
-        cout << "活动信息修改成功！\n";
+        // 填写资料时活动也可能刚好结束，保存前再检查一次。
+        if (a->hasEnded(now())) {
+            swapState(previous);
+            cout << "活动已结束，本次修改未保存。\n";
+            return false;
+        }
+        a->setStatus("pending");
+        if (!autoSaveIfNeeded()) {
+            swapState(previous);
+            return false;
+        }
+        cout << "活动信息已修改并重新提交审核，已有报名和候补保留，审核通过前暂停新报名。\n";
     } else {
         cout << "没有任何修改。\n";
     }
@@ -378,21 +448,61 @@ bool ActivityManager::deleteActivity(const string& activityId, const string& ope
 }
 
 bool ActivityManager::removeActivity(const string& activityId) {
-    for (size_t i = 0; i < activities.size(); ++i) {
-        if (activities[i]->getActivityId() == activityId) {
-            activities.erase(activities.begin() + i);
-            autoSaveIfNeeded();
-            return true;
+    for(size_t i=0;i<activities.size();++i){
+        if(activities[i]->getActivityId()!=activityId) continue;
+        std::unique_ptr<Activity> old=std::move(activities[i]);
+        activities.erase(activities.begin()+i);
+        if(!autoSaveIfNeeded()){
+            activities.insert(activities.begin()+i,std::move(old));
+            return false;
         }
+        return true;
     }
     return false;
 }
 
-bool ActivityManager::auditActivity(const string& activityId, bool approve) {
+/*
+函数名：auditActivity
+功能：通过或拒绝一项待审核活动，并保存结果
+参数：activityId 活动编号；approve 为 true 表示通过，为 false 表示拒绝；
+      reason 可选，用来带回失败原因，默认 nullptr 表示调用方不需要原因。
+返回值：审核结果保存成功返回 true；活动不存在、不是待审核状态、
+        已过期仍选择通过，或者保存失败时返回 false。
+实现步骤：
+    1. 清空上一次的失败原因，再检查活动和审核状态；
+    2. 选择通过时检查结束时间，选择拒绝则不限制是否已经结束；
+    3. 备份活动和名单，修改审核状态；只有通过时才递补候补；
+    4. 保存失败时恢复备份，并通过 reason 告诉菜单层失败原因。
+关键点：reason 是指针，使用前要判断是否为空。传入 &reason 后，
+        函数里对 *reason 赋值，就能把说明带回管理员菜单。
+*/
+bool ActivityManager::auditActivity(const string& activityId, bool approve, string* reason) {
+    if (reason != nullptr) reason->clear();
     Activity* a = findActivity(activityId);
-    if (!a) return false;
+    if (a == nullptr) {
+        if (reason != nullptr) *reason = "活动不存在。";
+        return false;
+    }
+    if (a->getStatus() != "pending") {
+        if (reason != nullptr) *reason = "该活动不是待审核状态。";
+        return false;
+    }
+    // 过期活动不能通过，但要允许管理员拒绝，否则会一直留在待审核列表里。
+    if (approve && a->hasEnded(now())) {
+        if (reason != nullptr) *reason = "活动已结束，不能通过；可重新选择拒绝以移出待审核列表。";
+        return false;
+    }
+
+    // 候补递补也会改名单，所以要先备份整个状态，不能只记住原审核状态。
+    ActivityManager previous;
+    copyStateTo(previous);
     a->setStatus(approve ? "approved" : "rejected");
-    autoSaveIfNeeded();
+    if (approve) promoteWaiting(*a);
+    if (!autoSaveIfNeeded()) {
+        swapState(previous);
+        if (reason != nullptr) *reason = "文件保存失败，原审核状态和报名名单已保留。";
+        return false;
+    }
     return true;
 }
 
@@ -450,12 +560,23 @@ void ActivityManager::showApprovedActivities() const {
     for (size_t i = 0; i < v.size(); ++i) printBrief(*v[i], w);
 }
 
+/*
+函数名：showPendingActivities
+功能：显示所有待审核活动，并标明已经结束的活动
+说明：过期活动仍要显示，管理员才能选择拒绝，将它移出待审核列表。
+      列表中统一取一次当前时间，避免显示各行时使用不同的判断时间。
+*/
 void ActivityManager::showPendingActivities() const {
     vector<const Activity*> v = getPendingActivities();
     cout << "========待审核活动========\n";
     if (v.empty()) cout << "暂无待审核的活动。\n";
     int w = nameWidth(v);
-    for (size_t i = 0; i < v.size(); ++i) printBrief(*v[i], w);
+    string current = now();
+    for (size_t i = 0; i < v.size(); ++i) {
+        string note;
+        if (v[i]->hasEnded(current)) note = "已结束（仅可拒绝）";
+        printBrief(*v[i], w, note);
+    }
 }
 
 void ActivityManager::showActivitiesByClub(const string& clubId) const {
@@ -485,6 +606,8 @@ JoinResult ActivityManager::tryJoin(const string& userId, const string& activity
     if (a->inWaitList(userId)) return JoinResult::ALREADY_WAITING;
     if (findConflict(userId, *a) != nullptr) return JoinResult::CONFLICT;
 
+    ActivityManager previous;
+    copyStateTo(previous);
     JoinResult result;
     if (a->addParticipant(userId)) {
         result = JoinResult::SUCCESS;
@@ -493,7 +616,10 @@ JoinResult ActivityManager::tryJoin(const string& userId, const string& activity
     } else {
         return JoinResult::NOT_FOUND;  // userId 为空等非法情况
     }
-    autoSaveIfNeeded();
+    if (!autoSaveIfNeeded()) {
+        swapState(previous);
+        return JoinResult::SAVE_FAILED;
+    }
     return result;
 }
 
@@ -510,22 +636,22 @@ bool ActivityManager::joinActivity(const string& userId, const string& activityI
     return r == JoinResult::SUCCESS || r == JoinResult::WAITLISTED;
 }
 
-bool ActivityManager::cancelActivity(const string& userId, const string& activityId, string* promotedUser) {
-    if (promotedUser) promotedUser->clear();
-    Activity* a = findActivity(activityId);
-    if (!a || a->hasEnded(now())) return false;
-
-    if (a->removeParticipant(userId)) {
-        vector<string> promoted = promoteWaiting(*a);
-        if (promotedUser && !promoted.empty()) *promotedUser = promoted.front();
-        autoSaveIfNeeded();
-        return true;
+bool ActivityManager::cancelActivity(const string& userId,const string& activityId,string* promotedUser){
+    if(promotedUser) promotedUser->clear();
+    Activity* a=findActivity(activityId);
+    if(!a || a->hasEnded(now()) || (!a->hasParticipant(userId)&&!a->inWaitList(userId))) return false;
+    ActivityManager previous;
+    copyStateTo(previous);
+    vector<string> promoted;
+    if(a->removeParticipant(userId)){
+        if(a->isApproved()) promoted=promoteWaiting(*a);
+    } else a->removeWait(userId);
+    if (!autoSaveIfNeeded()) {
+        swapState(previous);
+        return false;
     }
-    if (a->removeWait(userId)) {
-        autoSaveIfNeeded();
-        return true;
-    }
-    return false;
+    if(promotedUser&&!promoted.empty()) *promotedUser=promoted.front();
+    return true;
 }
 
 void ActivityManager::showMyActivities(const string& userId) const {
@@ -539,11 +665,13 @@ void ActivityManager::showMyActivities(const string& userId) const {
     int w = nameWidth(mine);
     for (size_t i = 0; i < mine.size(); ++i) {
         const Activity& a = *mine[i];
+        string auditNote=a.getStatus()=="pending"?"（待审核，暂停新报名）":
+            (a.getStatus()=="rejected"?"（未通过审核，可取消报名）":"");
         if (a.hasParticipant(userId)) {
-            printBrief(a, w, a.hasEnded(now()) ? "已报名（已结束）" : "已报名");
+            printBrief(a, w, (a.hasEnded(now()) ? "已报名（已结束）" : "已报名")+auditNote);
         } else {
             size_t pos = std::find(a.getWaitList().begin(), a.getWaitList().end(), userId) - a.getWaitList().begin();
-            printBrief(a, w, "候补第" + std::to_string(pos + 1) + "位");
+            printBrief(a, w, "候补第" + std::to_string(pos + 1) + "位"+auditNote);
         }
     }
     if (mine.empty()) cout << "你还没有报名任何活动。\n";
@@ -580,7 +708,7 @@ void ActivityManager::manageRegistration(const string& activityId, const string&
             cout << "已移除 " << uid << "！\n";
             if (!promoted.empty()) cout << "候补用户 " << promoted << " 已递补入选。\n";
         } else {
-            cout << "移除失败：该用户不在名单中，或活动已结束。\n";
+            cout << "移除失败：该用户不在名单中、活动已结束或保存失败。\n";
         }
         cout << "\n";
     }
@@ -592,7 +720,7 @@ const Activity* ActivityManager::findConflict(const string& userId, const Activi
     for (size_t i = 0; i < activities.size(); ++i) {
         const Activity& other = *activities[i];
         if (other.getActivityId() == target.getActivityId()) continue;
-        if (!other.isApproved()) continue;
+        // 待重新审核或驳回期间保留的报名也占用时间；用户取消后释放。
         if (!other.hasParticipant(userId) && !other.inWaitList(userId)) continue;
         if (other.overlaps(target)) return &other;
     }
@@ -669,4 +797,86 @@ int ActivityManager::getParticipantCount(const string& clubId) const {
     for (size_t i = 0; i < activities.size(); ++i)
         if (activities[i]->isApproved() && activities[i]->getClubId() == clubId) n += activities[i]->getCur();
     return n;
+}
+
+
+/*
+函数名：copyStateTo
+功能：把当前活动列表、报名、候补和下一编号复制到另一个管理器中
+参数：target 接收副本的管理器，原来保存的活动列表会被替换
+说明：每个活动按原类型重新创建，不能只复制指针，否则修改原活动时备份也会跟着变。
+      这里只复制业务数据，不复制文件路径、自动保存开关和测试时钟。
+*/
+void ActivityManager::copyStateTo(ActivityManager& target) const {
+    if (&target == this) return;
+    target.activities.clear();
+    target.nextId = nextId;
+    for (const auto& entry : activities) {
+        const Activity& a = *entry;
+        auto copy = makeActivity(a.getType(), a.getActivityId(), a.getClubId(), a.getName(), a.getTags(),
+                                a.getStartTime(), a.getEndTime(), a.getLocation(), a.getMax(),
+                                a.getStatus(), a.getExtra());
+        copy->participants = a.participants;
+        copy->waitList = a.waitList;
+        target.activities.push_back(std::move(copy));
+    }
+}
+/*
+函数名：swapState
+功能：交换两个管理器的活动列表和下一编号，常用于保存失败后恢复备份
+参数：other 保存修改前数据的管理器
+说明：报名和候补属于活动对象，会随活动列表一起交换；文件路径和时钟不交换。
+*/
+void ActivityManager::swapState(ActivityManager& other) {
+    activities.swap(other.activities);
+    std::swap(nextId, other.nextId);
+}
+
+/*
+函数名：resubmitActivity
+功能：把被拒绝且未结束的活动重新提交审核，保留原编号和报名记录
+参数：activityId 活动编号；operatorClubId 非空时必须与活动所属社团一致
+返回值：提交并保存成功返回 true；状态、归属、结束时间不符合要求或保存失败返回 false。
+实现步骤：检查活动后将状态改为 pending，再保存；保存失败则恢复 rejected。
+*/
+bool ActivityManager::resubmitActivity(const string& activityId, const string& operatorClubId) {
+    Activity* a = findActivity(activityId);
+    if (!a || a->getStatus() != "rejected" || a->hasEnded(now()) ||
+        (!operatorClubId.empty() && a->getClubId() != operatorClubId)) {
+        return false;
+    }
+    a->setStatus("pending");
+    if (!autoSaveIfNeeded()) {
+        a->setStatus("rejected");
+        return false;
+    }
+    return true;
+}
+
+/*
+函数名：cancelUnendedByClub
+功能：移除指定社团未结束的活动及其报名、候补，保留已结束活动
+参数：clubId 社团编号
+返回值：成功返回移除数量，没有符合条件的活动返回 0，保存失败返回 -1。
+实现步骤：备份当前数据，逐个检查社团和结束时间，移除后统一保存；保存失败恢复备份。
+关键点：erase 返回下一个元素的迭代器，删除后不能再递增，否则会漏查相邻活动。
+*/
+int ActivityManager::cancelUnendedByClub(const string& clubId) {
+    ActivityManager previous;
+    copyStateTo(previous);
+    int count = 0;
+    string current = now();
+    for (auto it = activities.begin(); it != activities.end();) {
+        if ((*it)->getClubId() == clubId && !(*it)->hasEnded(current)) {
+            it = activities.erase(it);
+            ++count;
+        } else {
+            ++it;
+        }
+    }
+    if (count > 0 && !autoSaveIfNeeded()) {
+        swapState(previous);
+        return -1;
+    }
+    return count;
 }

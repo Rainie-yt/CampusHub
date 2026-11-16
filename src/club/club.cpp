@@ -1,6 +1,6 @@
-﻿#include"club.h"
+#include"club.h"
 #include<iostream>
-Club::Club(const string& id, const string& name, const string& intro, const string& leader) 
+Club::Club(const string& id, const string& name, const string& intro, const string& leader)
 {
 	clubId = id;
 	clubName = name;
@@ -37,7 +37,7 @@ bool Club::rename(const string& newName)
 		if (newName[i] == '\r' || newName[i] == '\n')
 		{
 			return false;
-		}	
+		}
 		//检查是否存在非空字符
 		if (newName[i] != ' ' && newName[i] != '\t' && newName[i] != '\v' && newName[i] != '\f')
 		{
@@ -122,7 +122,7 @@ bool Club::removeMember(const string& userId)
 		{
 			memberIds.erase(memberIds.begin() + i);
 			return true;
-		}	
+		}
 	}
 	return false;
 }
@@ -215,4 +215,9 @@ vector<string>Club::getApplicantIds()const
 void Club::clearApplicants()
 {
 	applicantIds.clear();
+}
+void Club::dissolve(){
+    status="dissolved";
+    memberIds.clear();
+    applicantIds.clear();
 }

@@ -1,3 +1,8 @@
+/*
+文件名：ActivityManager.h
+功能：声明活动管理、报名候补、时间冲突检测、兴趣推荐和积分统计的公共接口。
+说明：各角色使用同一个管理器。函数参数和主要处理步骤写在对应 .cpp 的函数前。
+*/
 #pragma once
 #include <memory>
 #include <string>
@@ -14,6 +19,7 @@ enum class JoinResult {
     ALREADY_WAITING,  // 已在候补名单
     NOT_FOUND,        // 活动不存在
     NOT_APPROVED,     // 活动未通过审核
+    SAVE_FAILED,      // 保存失败，已恢复原状态
     ENDED             // 活动已结束
 };
 
@@ -25,10 +31,14 @@ public:
                              const std::string& regFile = "data/registrations.txt");
 
     // ---------- 文件 ----------
-    // 读取两个文件。文件不存在视为空；格式有误的行会被跳过并在 cerr 提示，
-    // 此时返回 false（其余正常的数据仍会被加载）。
+    // 两个文件完整校验后才替换状态。文件不存在视为空；存在但无法读取、
+    // 解析失败时报告文件和行号，返回false并保留原有活动、报名、候补及编号。
     bool load();
     bool save() const;
+    void copyStateTo(ActivityManager& target) const;
+    void swapState(ActivityManager& other);
+    bool resubmitActivity(const std::string& activityId, const std::string& operatorClubId = "");
+    int cancelUnendedByClub(const std::string& clubId);
     void setAutoSave(bool on) { autoSave = on; }   // 默认开启：每次修改后自动保存
 
     // 测试用：固定“当前时间”（格式同活动时间）。传空串恢复为系统时间。
@@ -36,20 +46,22 @@ public:
     std::string now() const;
 
     // ---------- 活动管理（社团负责人 / 管理员）----------
-    // 添加活动，成功返回新分配的活动编号，对象不合法返回 ""。
+    // 添加活动，成功返回新分配的活动编号，对象不合法或结束时间不晚于当前时间时返回 ""。
     std::string addActivity(std::unique_ptr<Activity> act);
     // 交互式发布活动（社团负责人调用），新活动状态为 pending，等待管理员审核。
     bool publishActivity(const std::string& clubId);
     // 交互式修改活动。接口表只传 activityId；operatorClubId 可选，非空时必须与
     // 活动所属社团一致（额外的权限保护），留空则不检查。
-    // 已有人报名/候补时不允许修改时间，避免破坏已通过的冲突检测。
+    // 已有人报名/候补时不允许修改时间；修改后的结束时间必须晚于当前时间。
     bool modifyActivity(const std::string& activityId, const std::string& operatorClubId = "");
     // 社团负责人删除活动。operatorClubId 的规则同上。
     bool deleteActivity(const std::string& activityId, const std::string& operatorClubId = "");
     // 管理员删除违规活动（不检查社团）。
     bool removeActivity(const std::string& activityId);
-    // 管理员审核：approve=true 通过，false 驳回。
-    bool auditActivity(const std::string& activityId, bool approve = true);
+    // approve 为 true 表示通过，false 表示拒绝；已结束的活动只能拒绝。
+    // reason 接收失败原因，成功时清空；不需要原因时可省略，传入时写 &reason。
+    bool auditActivity(const std::string& activityId, bool approve = true,
+                       std::string* reason = nullptr);
 
     // ---------- 查询 ----------
     Activity* findActivity(const std::string& activityId);
@@ -120,5 +132,5 @@ private:
     std::string fixedNow;
 
     std::string generateId();
-    void autoSaveIfNeeded() const;
+    bool autoSaveIfNeeded() const;
 };
