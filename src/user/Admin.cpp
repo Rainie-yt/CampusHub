@@ -19,7 +19,7 @@ Admin::Admin(string id,string name,string pwd):User(id,name,pwd,"Admin")
 功能：管理员主菜单，根据选择进入用户管理、社团管理、活动管理、数据统计四个子菜单
 实现说明：
     用 while(true) 循环显示菜单，子菜单返回后重新显示主菜单，选 0 时 return 退出登录；
-    readIntChoice() 遇到非数字输入会返回 -1，进入 default 提示重新输入。
+    readIntChoice() 遇到非数字输入会清理当前行并提示重输；读到整数后再进入 switch。
     本函数重写了基类 User 的纯虚函数，main 通过 User* 调用时执行的是这个版本（多态）。
 */
 void Admin::showMenu(){
@@ -33,6 +33,7 @@ void Admin::showMenu(){
         cout<<"2.社团管理"<<endl;
         cout<<"3.活动管理"<<endl;
         cout<<"4.数据统计"<<endl;
+        cout<<"5.修改密码"<<endl;
         cout<<"0.退出登录"<<endl;
         cout<<endl;
         cout<<"请选择：";
@@ -52,6 +53,12 @@ void Admin::showMenu(){
             }
             case 4:{
                 systemStatisticsMenu();
+                break;
+            }
+            case 5:{
+                //管理员继承了User的改密码功能，直接修改当前登录账号
+                string newpwd=readField("请输入新密码：");
+                changePassword(newpwd);
                 break;
             }
             case 0:{
@@ -397,13 +404,14 @@ void Admin::auditClub(){
 /*
 函数名：deleteClub
 功能：解散违规社团并归档，保留已结束活动、历史报名和积分
-说明：保留旧函数名 deleteClub 以兼容菜单接口，业务调用 dissolveClub。
 实现步骤：
-    1. 显示社团并读取编号，拒绝不存在或已经解散的社团；
-    2. 确认后清理成员和加入申请，将社团状态改为 dissolved 并保存；
-    3. 取消该社团全部未结束活动及其报名，保留已结束活动与历史积分；
-    4. 原负责人不再负责其他已通过社团时，恢复为普通学生；
-    5. 任一步保存失败，persistChange 恢复社团、活动及用户数据。
+    1. 检查社团存在且尚未解散，再向管理员确认；
+    2. 调用 dissolveClub 清理成员、加入申请，并把社团标记为 dissolved；
+    3. 取消该社团尚未结束的活动及报名，已结束活动和历史积分保留；
+    4. 原负责人没有其他已通过的社团，且仍是负责人角色时，改回普通学生；
+    5. 用 persistChange 一起保存关联数据，任一步失败则恢复本次改动。
+关键点：函数沿用 deleteClub 这个名字，但这里做的是解散归档，不能直接删除社团资料，
+        否则保留的历史活动会失去所属社团。
 */
 void Admin::deleteClub(){
     clubService->showAllClubs();
@@ -515,8 +523,9 @@ void Admin::viewActivityInfo()
     2. 输入活动编号，检查活动是否存在、是否还是待审核状态；
     3. 显示活动详情，方便管理员判断是否通过；
     4. 循环读入选择：1 通过、2 拒绝、0 取消；
-    5. 通过时检查社团状态；调用 tryAuditActivity() 统一判断审核结果并提示。
-       已结束的待审核活动只能拒绝；保存失败时恢复状态和名单。
+    5. 通过前检查社团状态，再调用活动模块保存审核结果。
+说明：过期活动不能通过，但可以拒绝；拒绝不要求所属社团仍是已通过状态。
+      reason 接收活动模块给出的失败原因，菜单只负责显示，不重复推测原因。
 */
 void Admin::auditActivity()
 {
@@ -545,8 +554,9 @@ void Admin::auditActivity()
     cout<<endl;
     cout<<"========活动详情========"<<endl;
     act->showInfo();
-    if(act->hasEnded(activityManager->now()))
+    if(act->hasEnded(activityManager->now())){
         cout<<"活动已结束，不能通过审核；请选择拒绝以移出待审核列表。"<<endl;
+    }
     cout<<endl;
     int choice;
     //输错就重新选，选0可以随时取消
@@ -567,22 +577,13 @@ void Admin::auditActivity()
         cout<<"活动所属社团未通过审核或已经解散，不能通过该活动；仍可选择拒绝。"<<endl;
         return;
     }
-    switch(activityManager->tryAuditActivity(activityId,choice==1)){
-        case AuditResult::SUCCESS:
-            cout<<(choice==1?"活动已通过审核！":"已拒绝该活动！")<<endl;
-            break;
-        case AuditResult::NOT_FOUND:
-            cout<<"审核失败：活动不存在。"<<endl;
-            break;
-        case AuditResult::NOT_PENDING:
-            cout<<"审核失败：该活动不是待审核状态。"<<endl;
-            break;
-        case AuditResult::ENDED:
-            cout<<"审核失败：活动已结束，不能通过；可重新选择拒绝以移出待审核列表。"<<endl;
-            break;
-        case AuditResult::SAVE_FAILED:
-            cout<<"审核失败：文件保存失败，原审核状态和报名名单已保留。"<<endl;
-            break;
+    // 传入 reason 的地址，活动模块保存失败或检查不通过时会把原因写回来。
+    string reason;
+    if(activityManager->auditActivity(activityId,choice==1,&reason)){
+        if(choice==1) cout<<"活动已通过审核！"<<endl;
+        else cout<<"已拒绝该活动！"<<endl;
+    }else{
+        cout<<"审核失败："<<reason<<endl;
     }
 }
 /*

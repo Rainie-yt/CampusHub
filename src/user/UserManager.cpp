@@ -24,6 +24,17 @@ UserManager::UserManager(){
     userFile="data/users.txt";
 }
 
+/*
+函数名：validateData
+功能：启动时检查账号文件，避免错误账号参与登录或历史注销Id处理
+返回值：文件不存在或所有记录通过检查返回 true；读取失败或账号记录有错返回 false。
+实现步骤：
+    1. 读取账号文件，检查文件头是否含有当前账号读取方式不支持的 BOM；
+    2. 每行按 | 拆分，检查字段数量、Id、密码、角色和已有的状态字段；
+    3. 用 set 保存读过的Id，发现重复时报告文件名和行号。
+说明：兼容没有状态列的旧六字段记录。本函数只做检查，不修复或改写文件，
+      main 收到 false 后停止启动，防止错误数据在后续操作中被覆盖。
+*/
 bool UserManager::validateData(){
     string text;
     if(!DataFile::read(userFile,text)) return false;
@@ -42,6 +53,7 @@ bool UserManager::validateData(){
             || (fields[3]!="Student" && fields[3]!="ClubManager" && fields[3]!="Admin")
             || (fields.size()>=7 && fields[6]!=USER_NORMAL && fields[6]!=USER_FROZEN))
             return DataFile::error(userFile,number,"账号字段不完整或Id、密码、角色、状态不合法");
+        // insert 返回的 second 为 false，说明这个Id之前已经出现过。
         if(!ids.insert(fields[0]).second)
             return DataFile::error(userFile,number,"用户Id重复");
     }

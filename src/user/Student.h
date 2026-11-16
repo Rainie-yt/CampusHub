@@ -28,6 +28,10 @@ class Student:public User{
     void showMenu();
     //功能：个人信息管理菜单，显示个人信息，可修改密码、管理兴趣标签
     void showInfoMenu();
+    //功能：修改姓名，保存失败时恢复原值
+    void modifyName();
+    //功能：修改专业，保存失败时恢复原值
+    void modifyMajor();
     //功能：我的报名活动菜单，显示已报名和候补的活动、积分，可取消报名
     void showMyActivityMenu();
     //功能：活动报名，浏览已通过且未结束的活动，查看详情后确认报名
@@ -56,7 +60,9 @@ class Student:public User{
     void applyCreateClub();
     //功能：浏览已审核通过的社团，每个社团一行
     void browseClubs()const;
-    //功能：按名称关键词搜索已通过的社团。参数：keyword 关键词
+    //功能：社团查询子菜单，可按名称、类型、负责人编号查询
+    void searchClubMenu()const;
+    //功能：按名称关键词搜索已通过的社团。参数：keyword 社团名称关键词
     void searchClubs(const string& keyword)const;
     //功能：显示社团详情（只能查看已通过的社团）。参数：clubId 社团编号
     void showClubDetail(const string& clubId)const;

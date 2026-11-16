@@ -1,5 +1,5 @@
 from pathlib import Path
-import argparse, json, stat, subprocess, tempfile
+import argparse, stat, subprocess, tempfile
 parser=argparse.ArgumentParser(description="CampusHub regression tests with isolated synthetic data")
 parser.add_argument("--exe",default=str(Path(__file__).resolve().parents[1]/"campushub.exe"))
 args=parser.parse_args()
@@ -18,6 +18,7 @@ def fixture(name, pending=False):
     (p/'data/clubs.txt').write_text(clubs,encoding='utf-8')
     (p/'data/club_members.txt').write_text('C001 S2\n',encoding='utf-8')
     (p/'data/club_applications.txt').write_text('',encoding='utf-8')
+    (p/'data/retired_user_ids.txt').write_text('',encoding='utf-8')
     acts=['3001|C001|Lecture|Future|sport|2099-01-01 14:00|2099-01-01 16:00|room|1|approved|speaker',
           '3002|C001|Lecture|Conflict|sport|2099-01-01 15:00|2099-01-01 17:00|room|5|approved|speaker',
           '3003|C001|Lecture|History|sport|2020-01-01 14:00|2020-01-01 16:00|room|5|approved|speaker',
@@ -30,14 +31,6 @@ def run(p,lines):
     (p/'console.txt').write_text(r.stdout+r.stderr,encoding='utf-8')
     assert r.returncode==0,(p,r.stderr)
     return r.stdout
-def record(name,condition,detail):
-    assert condition,(name,detail)
-    RESULTS.append(dict(test=name,result='confirmed',detail=detail))
-base_fixture=fixture
-def fixture(name,pending=False):
-    p=base_fixture(name,pending)
-    (p/'data/retired_user_ids.txt').write_text('',encoding='utf-8')
-    return p
 RESULTS=[]
 def check(name,value):
     if not value:
@@ -93,7 +86,7 @@ o=run(p,['1','S1','pw','1','1','newpass','0','0','1','S1','newpass','0','0'])
 check('恢复可写后修改密码并重新登录','S1|Student1|newpass|' in text(p,'users.txt') and o.count('登录成功')==2)
 p=fixture('interest_failure')
 before=files(p)
-o=locked(p,'users.txt',['1','S1','pw','1','2','1','music','2','sport','0','0','0','0'])
+o=locked(p,'users.txt',['1','S1','pw','1','4','1','music','2','sport','0','0','0','0'])
 check('兴趣增删失败回滚','兴趣标签添加失败' in o and '兴趣标签删除失败' in o and '兴趣标签添加成功' not in o and before==files(p))
 p=fixture('role_pending',True)
 o=run(p,['1','A','pw','1','4','S3','3','0','2','2','C002','1','0','0','0'])

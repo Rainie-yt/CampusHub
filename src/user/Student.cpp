@@ -83,8 +83,9 @@ void Student::showMenu(){
 实现步骤：
     1. 调用基类的 showInfo() 显示Id、用户名、角色，再补充显示专业和兴趣标签；
     2. 选 1：用 readField() 读入新密码（不允许 | 和空格），调用 changePassword() 修改并写回文件；
-    3. 选 2：进入 modifyInterest() 兴趣标签管理；
-    4. 选 0：返回上一级菜单。
+    3. 选 2、3：分别调用 modifyName()、modifyMajor() 修改用户名和专业；
+    4. 选 4：进入 modifyInterest() 兴趣标签管理；
+    5. 选 0：返回上一级菜单。
 */
 void Student::showInfoMenu(){
     while(true){
@@ -96,7 +97,9 @@ void Student::showInfoMenu(){
         showInterests();
         cout<<endl;
         cout<<"1.修改密码"<<endl;
-        cout<<"2.管理兴趣标签"<<endl;
+        cout<<"2.修改用户名"<<endl;
+        cout<<"3.修改专业"<<endl;
+        cout<<"4.管理兴趣标签"<<endl;
         cout<<"0.返回上一级菜单"<<endl;
         cout<<endl;
         cout<<"请选择：";
@@ -111,6 +114,16 @@ void Student::showInfoMenu(){
                 break;
             case 2:
                 {
+                    modifyName();
+                }
+                break;
+            case 3:
+                {
+                    modifyMajor();
+                }
+                break;
+            case 4:
+                {
                     modifyInterest();
                 }
                 break;
@@ -120,6 +133,58 @@ void Student::showInfoMenu(){
                 cout<<"无效的选择，请重新输入！"<<endl;
         }
     }
+}
+/*
+函数名：modifyName
+功能：修改当前用户的姓名，并写回 users.txt
+实现步骤：
+    1. 用 readField() 读取新姓名，允许空格和逗号，不允许文件分隔符 |；
+    2. 保存原姓名，再修改对象中的 userName；
+    3. 调用 updateUser() 写回文件，失败时恢复原姓名。
+说明：目前项目用 userName 保存姓名，这里不修改用户Id，
+      因此不会影响已经加入的社团和活动报名。
+*/
+void Student::modifyName(){
+    string newName=readField("请输入新的用户名：",true,true);
+    if(newName==userName){
+        cout<<"用户名无变化。"<<endl;
+        return;
+    }
+
+    string oldName=userName;
+    userName=newName;
+    if(userManager==nullptr||!userManager->updateUser(this)){
+        userName=oldName;
+        cout<<"姓名修改失败，原姓名未更改！"<<endl;
+        return;
+    }
+    cout<<"姓名修改成功！"<<endl;
+}
+
+/*
+函数名：modifyMajor
+功能：修改当前用户的专业，并写回 users.txt
+实现步骤：
+    1. 用 readField() 读取新专业，允许空格和逗号；
+    2. 保存原专业，再修改对象中的 major；
+    3. 调用 updateUser() 保存，失败时恢复原专业。
+关键点：只有文件保存成功才算修改成功，避免内存和文件中的资料不一致。
+*/
+void Student::modifyMajor(){
+    string newMajor=readField("请输入新专业：",true,true);
+    if(newMajor==major){
+        cout<<"专业无变化。"<<endl;
+        return;
+    }
+
+    string oldMajor=major;
+    major=newMajor;
+    if(userManager==nullptr||!userManager->updateUser(this)){
+        major=oldMajor;
+        cout<<"专业修改失败，原专业未更改！"<<endl;
+        return;
+    }
+    cout<<"专业修改成功！"<<endl;
 }
 /*
 函数名：modifyInterest
@@ -438,10 +503,7 @@ void Student::clubMenu(){
                 browseClubs();
                 break;
             case 2:{
-                cout<<"请输入社团名称关键词：";
-                //readLine() 读入整行，关键词中间可以有空格
-                string keyword=readLine();
-                searchClubs(keyword);
+                searchClubMenu();
                 break;
             }
             case 3:{
@@ -455,8 +517,11 @@ void Student::clubMenu(){
                 string clubId;
                 cout<<"请输入要加入的社团编号：";
                 cin>>clubId;
-                if(persistChange([&](){ return clubService->applyToJoin(userId,clubId) && saveClubData(); })){
-                        cout<<"加入申请已提交，请等待社团负责人审核！"<<endl;
+                if(persistChange([&](){
+                    return clubService->applyToJoin(userId,clubId)
+                        && saveClubData();
+                })){
+                    cout<<"加入申请已提交，请等待社团负责人审核！"<<endl;
                 }
                 else{
                     cout<<"申请失败：社团不存在或未通过审核，或你已是成员、已申请过。"<<endl;
@@ -473,8 +538,11 @@ void Student::clubMenu(){
                 string clubId;
                 cout<<"请输入要退出的社团编号：";
                 cin>>clubId;
-                if(persistChange([&](){ return clubService->leaveClub(userId,clubId) && saveClubData(); })){
-                        cout<<"已成功退出社团！"<<endl;
+                if(persistChange([&](){
+                    return clubService->leaveClub(userId,clubId)
+                        && saveClubData();
+                })){
+                    cout<<"已成功退出社团！"<<endl;
                 }
                 else{
                     cout<<"退出社团失败：社团不存在或你不是该社团成员。"<<endl;
@@ -572,10 +640,65 @@ void Student::browseClubs()const{
     cout<<"共"<<clubs.size()<<"个社团"<<endl;
 }
 /*
+函数名：searchClubMenu
+功能：社团查询子菜单，支持按名称、类型和负责人编号查询
+实现步骤：
+    1. 循环显示查询方式，选 0 返回社团中心；
+    2. 按名称查询时调用原来的 searchClubs()；
+    3. 按类型、负责人编号查询时调用社团模块已有的函数。
+说明：三种查询都只显示已审核通过的社团。
+      类型按完整名称匹配，负责人按用户Id查询，不是按姓名查询。
+*/
+void Student::searchClubMenu()const{
+    if(clubService==nullptr){
+        cout<<"社团数据未加载！"<<endl;
+        return;
+    }
+
+    while(true){
+        cout<<endl;
+        cout<<"========社团查询========"<<endl;
+        cout<<"1.按名称查询"<<endl;
+        cout<<"2.按类型查询"<<endl;
+        cout<<"3.按负责人编号查询"<<endl;
+        cout<<"0.返回上一级菜单"<<endl;
+        cout<<endl;
+        cout<<"请选择：";
+        int choice=readIntChoice();
+
+        switch(choice){
+            case 1:{
+                cout<<"请输入社团名称关键词：";
+                string keyword=readLine();
+                searchClubs(keyword);
+                break;
+            }
+            case 2:{
+                cout<<"请输入社团类型（体育社团、学术社团、艺术社团、普通社团）：";
+                string type=readLine();
+                clubService->searchApprovedClubsByType(type);
+                break;
+            }
+            case 3:{
+                cout<<"请输入负责人编号：";
+                string leaderId;
+                cin>>leaderId;
+                clubService->searchApprovedClubByLeader(leaderId);
+                break;
+            }
+            case 0:
+                return;
+            default:
+                cout<<"无效的选择，请重新输入！"<<endl;
+        }
+    }
+}
+/*
 函数名：searchClubs
 功能：按名称关键词搜索已通过的社团，结果格式与浏览一致
 参数：keyword 社团名称关键词
-实现说明：用 string::find 判断社团名称是否包含关键词，能找到（返回值不是 npos）就输出
+实现说明：逐个检查社团名称是否包含关键词，找到就输出，
+          全部检查后仍没有匹配结果时显示提示。
 */
 void Student::searchClubs(const string& keyword)const{
     cout<<endl;

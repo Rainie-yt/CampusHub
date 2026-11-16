@@ -119,9 +119,8 @@ public:
 	//社团不存在或已审核时返回false
 	//调用前需要检查当前用户是否为管理员
 	bool auditClub(const string& clubId, bool passed);
-	// 兼容保留的旧接口，当前业务流程无调用；直接移除无成员的社团资料。
-	// 不检查或处理关联活动、加入申请及负责人角色，勿用于管理员菜单。
-	// 管理员解散流程统一调用 dissolveClub，保留历史归属。
+	// 旧的删除方法，目前菜单里没有用。这里只删社团，不处理活动和负责人。
+	// 管理员解散社团时用 dissolveClub，才能保留历史记录。
 	// 社团不存在或仍有成员时返回false
 	bool deleteClub(const string& clubId);
 	//申请成立社团，成功返回新编号，失败返回空字符串

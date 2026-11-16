@@ -59,7 +59,8 @@ int main(){
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
     UserManager userManager;
-    // 先完整校验所有数据；加载失败时禁止进入菜单，避免不完整数据被保存覆盖。
+    // 成员和申请都依赖社团，所以先读社团，再读名单，最后读取活动及报名。
+    // 任何一个文件有问题就停止启动，不能先进入菜单、等保存时再发现少了数据。
     ClubService clubService;
     ActivityManager activityManager;
     if(!userManager.validateData()
@@ -70,7 +71,8 @@ int main(){
         cerr<<"数据加载失败，启动已取消；原数据文件未修改，请修复后重试。"<<endl;
         return 1;
     }
-    // 所有业务数据通过校验后，才允许补充历史注销Id名单。
+    // 补充注销Id会写文件，所以要等前面的只读检查全部成功后再做。
+    // 否则程序虽然启动失败，却可能已经改动了注销名单。
     if(!userManager.reserveHistoricalIds(clubService,activityManager)){
         cout<<"无法检查或保存历史注销Id，启动已取消，请先检查数据文件权限和格式。"<<endl;
         return 1;

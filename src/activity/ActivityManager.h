@@ -1,3 +1,8 @@
+/*
+文件名：ActivityManager.h
+功能：声明活动管理、报名候补、时间冲突检测、兴趣推荐和积分统计的公共接口。
+说明：各角色使用同一个管理器。函数参数和主要处理步骤写在对应 .cpp 的函数前。
+*/
 #pragma once
 #include <memory>
 #include <string>
@@ -17,9 +22,6 @@ enum class JoinResult {
     SAVE_FAILED,      // 保存失败，已恢复原状态
     ENDED             // 活动已结束
 };
-
-// 审核结果由业务层统一判断，菜单据此输出准确原因。
-enum class AuditResult { SUCCESS, NOT_FOUND, NOT_PENDING, ENDED, SAVE_FAILED };
 
 std::string joinResultText(JoinResult r);   // 结果的中文说明
 
@@ -56,10 +58,10 @@ public:
     bool deleteActivity(const std::string& activityId, const std::string& operatorClubId = "");
     // 管理员删除违规活动（不检查社团）。
     bool removeActivity(const std::string& activityId);
-    // 管理员审核：approve=true 通过，false 驳回。已结束的待审核活动只能驳回。
-    AuditResult tryAuditActivity(const std::string& activityId, bool approve = true);
-    // 保留原有 bool 接口供其他模块调用。
-    bool auditActivity(const std::string& activityId, bool approve = true);
+    // approve 为 true 表示通过，false 表示拒绝；已结束的活动只能拒绝。
+    // reason 接收失败原因，成功时清空；不需要原因时可省略，传入时写 &reason。
+    bool auditActivity(const std::string& activityId, bool approve = true,
+                       std::string* reason = nullptr);
 
     // ---------- 查询 ----------
     Activity* findActivity(const std::string& activityId);
