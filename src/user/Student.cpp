@@ -44,9 +44,8 @@ void Student::showMenu(){
         cout<<"========学生菜单========"<<endl;
         cout<<"1.个人信息管理"<<endl;
         cout<<"2.社团中心"<<endl;
-        cout<<"3.活动报名"<<endl;
-        cout<<"4.我的报名活动"<<endl;
-        cout<<"5.兴趣推荐"<<endl;
+        cout<<"3.活动中心"<<endl;
+        cout<<"4.兴趣推荐"<<endl;
         cout<<"0.退出登录"<<endl;
         cout<<endl;
         cout<<"请选择：";
@@ -61,13 +60,10 @@ void Student::showMenu(){
                 clubMenu();
                 break;
             case 3:
-                joinActivityMenu();
+                activityMenu();
                 break;
             case 4:
-                showMyActivityMenu();
-                break;
-            case 5:
-                recommendClubs();
+                showRecommendations();
                 break;
             case 0:
                 cout<<"退出登录"<<endl;
@@ -155,10 +151,10 @@ void Student::modifyName(){
     userName=newName;
     if(userManager==nullptr||!userManager->updateUser(this)){
         userName=oldName;
-        cout<<"姓名修改失败，原姓名未更改！"<<endl;
+        cout<<"用户名修改失败，原用户名未更改！"<<endl;
         return;
     }
-    cout<<"姓名修改成功！"<<endl;
+    cout<<"用户名修改成功！"<<endl;
 }
 
 /*
@@ -320,6 +316,43 @@ vector<string> Student::getInterests()const{
     return interests;
 }
 /*
+函数名：activityMenu
+功能：活动中心菜单，学生和社团负责人共用
+实现步骤：
+    1. 检查活动管理器是否已设置，没有加载时提示并返回；
+    2. 循环显示选项：1 浏览并报名，2 我的报名活动，0 返回；
+    3. 调用原有函数处理报名、查看积分和取消报名，处理完后回到活动中心。
+说明：这里只组织菜单，不直接修改报名数据，具体检查和保存仍由活动模块处理。
+*/
+void Student::activityMenu(){
+    if(activityManager==nullptr){
+        cout<<"活动数据未加载！"<<endl;
+        return;
+    }
+    while(true){
+        cout<<endl;
+        cout<<"========活动中心========"<<endl;
+        cout<<"1.浏览并报名"<<endl;
+        cout<<"2.我的报名活动"<<endl;
+        cout<<"0.返回上一级菜单"<<endl;
+        cout<<endl;
+        cout<<"请选择：";
+        int choice=readIntChoice();
+        switch(choice){
+            case 1:
+                joinActivityMenu();
+                break;
+            case 2:
+                showMyActivityMenu();
+                break;
+            case 0:
+                return;
+            default:
+                cout<<"无效的选择，请重新输入！"<<endl;
+        }
+    }
+}
+/*
 函数名：joinActivityMenu
 功能：活动报名。列出可报名的活动，输入编号后显示详情，确认后报名
 实现步骤：
@@ -422,46 +455,48 @@ void Student::showMyActivityMenu()
     }
 }
 /*
-函数名：recommendClubs
-功能：兴趣推荐。根据兴趣标签分别推荐社团和活动
+函数名：showRecommendations
+功能：根据当前用户的兴趣，分别显示社团和活动推荐结果
 实现步骤：
-    1. 没有兴趣标签时提示先去添加；
-    2. 推荐社团：把每个已通过社团的名称、简介、分类资料拼成一个字符串，
-       只要包含任意一个兴趣标签就推荐，用 break 保证每个社团只推荐一次；
-    3. 推荐活动：调用活动模块的 recommend()，它按兴趣标签与活动标签的匹配度
-       从高到低排好序，只返回结果、不输出；这里取前 5 个，按"编号  名称"的统一格式显示。
+    1. 没有兴趣标签时，提示用户先添加兴趣，再返回；
+    2. 社团数据可用时，用兴趣匹配社团名称、简介和分类资料，匹配任意一个就推荐；
+    3. 活动数据可用时，调用 recommend() 取得已按匹配度排序的活动，显示前 5 个。
+说明：两种推荐分别检查管理器。一种数据不可用时提示原因，另一种推荐仍可以继续。
+      社团使用关键词匹配，活动使用标签匹配度，具体计算规则不在这里重复实现。
 */
-void Student::recommendClubs()const{
-    if(clubService==nullptr){
-        cout<<"社团数据未加载，无法推荐社团！"<<endl;
-        return;
-    }
+void Student::showRecommendations()const{
     if(interests.empty()){
         cout<<"你还没有兴趣标签，请先在个人信息管理中添加！"<<endl;
         return;
     }
+
     cout<<endl;
     cout<<"========为你推荐社团========"<<endl;
-    vector<ClubBrief> clubs=clubService->getApprovedClubBriefs();
-    bool found=false;
-    for(const ClubBrief& club:clubs){
-        //名称、简介、分类资料合在一起比对，任意一处包含兴趣标签就算匹配
-        string text=club.clubName+" "+club.description+" "+club.extraInfo;
-        for(const string& interest:interests){
-            if(text.find(interest)!=string::npos){
-                cout<<"推荐社团："<<club.clubId<<"  "<<club.clubName<<endl;
-                found=true;
-                break;
+    if(clubService!=nullptr){
+        vector<ClubBrief> clubs=clubService->getApprovedClubBriefs();
+        bool found=false;
+        for(const ClubBrief& club:clubs){
+            //任意一处包含兴趣标签就推荐，找到后跳出内层循环，避免同一社团重复显示
+            string text=club.clubName+" "+club.description+" "+club.extraInfo;
+            for(const string& interest:interests){
+                if(text.find(interest)!=string::npos){
+                    cout<<"推荐社团："<<club.clubId<<"  "<<club.clubName<<endl;
+                    found=true;
+                    break;
+                }
             }
         }
+        if(!found){
+            cout<<"暂时没有匹配你兴趣的社团，你可以尝试添加更多兴趣标签！"<<endl;
+        }
+    }else{
+        cout<<"社团数据未加载，无法推荐社团！"<<endl;
     }
-    if(!found){
-        cout<<"暂时没有匹配你兴趣的社团，你可以尝试添加更多兴趣标签！"<<endl;
-    }
+
+    cout<<endl;
+    cout<<"========为你推荐活动========"<<endl;
     if(activityManager!=nullptr){
-        cout<<endl;
-        cout<<"========为你推荐活动========"<<endl;
-        //pair 的 first 是活动指针，second 是匹配度
+        //pair 的 first 是活动指针，second 是匹配度；结果已由活动模块排好序
         vector<pair<const Activity*,double>> acts=activityManager->recommend(interests,userId);
         if(acts.empty()){
             cout<<"暂时没有匹配你兴趣的活动，你可以尝试添加更多兴趣标签！"<<endl;
@@ -469,6 +504,8 @@ void Student::recommendClubs()const{
         for(size_t i=0;i<acts.size()&&i<5;i++){
             cout<<"推荐活动："<<acts[i].first->getActivityId()<<"  "<<acts[i].first->getName()<<endl;
         }
+    }else{
+        cout<<"活动数据未加载，无法推荐活动！"<<endl;
     }
 }
 /*
@@ -706,6 +743,7 @@ void Student::searchClubs(const string& keyword)const{
     bool found=false;
     for(const ClubBrief& club:clubService->getApprovedClubBriefs()){
         if(club.clubName.find(keyword)!=string::npos){
+            //如果社团名称包含搜索关键词，就显示该社团
             printClubRow(club);
             found=true;
         }

@@ -38,13 +38,13 @@ UserManager::UserManager(){
 bool UserManager::validateData(){
     string text;
     if(!DataFile::read(userFile,text)) return false;
-    // 其他账号读取入口按原字段读取，不默默接受会改变Id含义的BOM。
+    // 其他账号读取入口按原字段读取，不接受会改变Id含义的BOM。
     if(text.compare(0,3,"\xEF\xBB\xBF")==0)
         return DataFile::error(userFile,1,"请使用不带BOM的UTF-8保存账号文件");
     istringstream input(text);
     string line;
     size_t number=0;
-    set<string> ids;
+    set<string> ids;//不保存重复元素
     while(DataFile::nextLine(input,line,number)){
         if(line.empty()) continue;
         const vector<string> fields=split(line,'|');
@@ -449,24 +449,14 @@ string UserManager::getUserNameById(const string& userId){
     2. 找到该用户那一行，把第 4 个字段（fields[3]，角色）改成 newRole，
        再用 | 把所有字段重新拼回一行，其他字段（包括状态）保持不变；
     3. 把所有行整体覆盖写回文件。
-说明：供管理员审核社团（申请人变为负责人）、删除社团（负责人改回学生）、修改角色时使用
+说明：供管理员审核社团（申请人变为负责人）、删除社团（负责人改回学生）、改变社团负责人时使用
 */
 bool UserManager::changeRole(const string& userId,const string& newRole){
-    ifstream inFile(userFile);
-    if(!inFile.is_open()){
-        cout<<"无法打开用户数据文件！"<<endl;
-        return false;
-    }
     vector<string> lines;
-    string line;
+    // readLines 会读取批量保存中已经暂存的内容，连续修改两个人时不会互相覆盖。
+    if(!readLines(lines)) return false;
     bool found=false;
-    while(getline(inFile,line)){
-        if(!line.empty()&&line.back()=='\r'){
-            line.pop_back();
-        }
-        if(line.empty()){
-            continue;
-        }
+    for(string& line:lines){
         vector<string> fields=split(line,'|');
         if(fields.size()>=4&&fields[0]==userId){
             //第4个字段是角色，改完重新用|拼回去
@@ -477,9 +467,7 @@ bool UserManager::changeRole(const string& userId,const string& newRole){
             }
             found=true;
         }
-        lines.push_back(line);
     }
-    inFile.close();
     if(!found){
         cout<<"未找到该用户，修改角色失败！"<<endl;
         return false;
@@ -533,6 +521,7 @@ bool UserManager::showUserInfoById(const string& userId){
         }
     }
     file.close();
+    //关闭已经打开的文件，结束对它的读写，释放占用的资源
     cout<<"未找到该用户！"<<endl;
     return false;
 }
@@ -758,12 +747,13 @@ bool UserManager::setUserStatus(const string& userId,const string& status){
 参数：userId 要删除的用户Id
 返回值：成功返回 true；找不到该用户或写文件失败返回 false
 实现说明：把除了该用户以外的所有行存进 kept，再用 kept 覆盖写回文件，相当于删掉那一行。
-          该用户在社团、活动中的数据由调用者（Admin::deleteUser）处理。
+          该用户在社团、活动中的数据由调用者（Admin::deleteUserMenu）处理。
 */
 bool UserManager::deleteUser(const string& userId){
     vector<string> lines,retired;
     if(!readLines(lines)||!readRetiredIds(retired)) return false;
     vector<string> kept;
+    //存放删除后还要保留的账号记录，相当于一份保留名单
     bool found=false;
     for(const string& line:lines){
         vector<string> fields=split(line,'|');

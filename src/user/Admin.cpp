@@ -73,7 +73,7 @@ void Admin::showMenu(){
 }
 /*
 函数名：userManageMenu
-功能：用户管理子菜单，四个选项分别调用查看、删除、冻结/解冻、修改角色函数
+功能：用户管理子菜单，四个选项分别调用查看、删除、冻结/解冻、更换社团负责人函数
 */
 void Admin::userManageMenu(){
     while(true){
@@ -82,7 +82,7 @@ void Admin::userManageMenu(){
         cout<<"1.查看所有用户"<<endl;
         cout<<"2.删除用户"<<endl;
         cout<<"3.冻结/解冻用户账号"<<endl;
-        cout<<"4.修改用户角色"<<endl;
+        cout<<"4.更换社团负责人"<<endl;
         cout<<"0.返回上一级菜单"<<endl;
         cout<<endl;
         cout<<"请选择：";
@@ -93,15 +93,15 @@ void Admin::userManageMenu(){
                 break;
             }
             case 2:{
-                deleteUser();
+                deleteUserMenu();
                 break;
             }
             case 3:{
-                freezeUser();
+                freezeUserMenu();
                 break;
             }
             case 4:{
-                modifyUserRole();
+                changeClubLeaderMenu();
                 break;
             }
             case 0:{
@@ -150,7 +150,7 @@ string Admin::selectUser(const string& prompt){
     return targetId;
 }
 /*
-函数名：deleteUser
+函数名：deleteUserMenu
 功能：删除一个用户，并清理他在社团模块和活动模块中的数据
 实现步骤：
     1. 用 selectUser() 选出要删除的用户；管理员账号不能删除；
@@ -162,7 +162,7 @@ string Admin::selectUser(const string& prompt){
     5. 遍历所有活动，取消他的报名和候补。cancelActivity() 对已结束的活动会返回 false，
        所以已结束活动的记录会保留；空出的名额由候补第一位自动递补。
 */
-void Admin::deleteUser(){
+void Admin::deleteUserMenu(){
     string targetId=selectUser("请输入要删除的用户Id：");
     if(targetId.empty()) return;
     string role=userManager->getUserRole(targetId);
@@ -175,6 +175,7 @@ void Admin::deleteUser(){
         <<" 吗？该Id将永久禁止重新注册，已结束活动保留。1.确认  0.取消"<<endl;
     if(readIntChoice()!=1){ cout<<"已取消。"<<endl; return; }
     int left=0,apps=0,acts=0;
+    //left:退出了几个社团 apps:撤销了几条入社申请 apps:取消了几个活动的报名或候补
     bool saved=persistChange([&](){
         if(!userManager->deleteUser(targetId)) return false;
         if(clubService){
@@ -202,7 +203,7 @@ void Admin::deleteUser(){
     cout<<"已移出"<<left<<"个社团，撤销"<<apps<<"条加入申请，取消"<<acts<<"个未结束活动的报名或候补。"<<endl;
 }
 /*
-函数名：freezeUser
+函数名：freezeUserMenu
 功能：冻结或解冻用户账号，冻结后该用户登录时会被拒绝
 实现步骤：
     1. 用 selectUser() 选出用户，查出他当前的状态；
@@ -210,7 +211,7 @@ void Admin::deleteUser(){
     3. 管理员账号不能被冻结，但如果数据中已经是冻结状态，仍然允许解冻；
     4. 确认后调用 UserManager::setUserStatus() 修改状态并写回 users.txt。
 */
-void Admin::freezeUser(){
+void Admin::freezeUserMenu(){
     string targetId=selectUser("请输入要冻结或解冻的用户Id：");
     if(targetId.empty()){
         return;
@@ -243,76 +244,78 @@ void Admin::freezeUser(){
     cout<<(frozen?"已解冻该账号！":"已冻结该账号！")<<endl;
 }
 /*
-函数名：modifyUserRole
-功能：修改用户角色（普通学生 / 社团负责人 / 系统管理员）
+函数名：changeClubLeaderMenu
+功能：管理员将已通过的社团交给本社团的一名普通学生成员
 实现步骤：
-    1. 用 selectUser() 选出用户，记下他原来的角色；
-    2. 循环读入新角色，输错重新选，选 0 取消；新旧角色相同时直接提示并返回；
-    3. 查出该用户负责的已通过社团 clubId：
-       - 负责着已通过的社团，不能改成其他角色，否则社团会没有负责人；
-       - 没有已通过的社团，不能设为社团负责人，否则进入社团管理时无社团可管；
-    4. 有待审核的社团成立申请时不能改角色，要先审核申请，避免审核通过后角色被覆盖；
-    5. 调用 UserManager::changeRole() 修改并写回文件。
-       已登录的用户对象不会改变，所以该用户要重新登录后新角色才生效。
+    1. 选择已通过社团，列出账号正常、没有其他社团成立申请或负责社团的普通学生成员；
+    2. 输入新负责人编号，再核对成员身份、账号角色和状态，确认后执行交接；
+    3. 更新社团负责人，新负责人升级；原负责人没有其他已通过社团时恢复为学生；
+    4. 用 persistChange 一起保存社团、成员及双方角色，失败时一起撤销。
+说明：原负责人保留成员身份，已有活动、报名和加入申请继续归该社团，新负责人接手管理。
+      老师账号仍为系统管理员，不在这里调整；双方重新登录后使用各自的新菜单。
 */
-void Admin::modifyUserRole(){
-    string targetId=selectUser("请输入要修改角色的用户Id：");
-    if(targetId.empty()){
+void Admin::changeClubLeaderMenu(){
+    if(clubService==nullptr || userManager==nullptr){
+        cout<<"关联模块未加载，无法更换负责人。"<<endl;
         return;
     }
-    string oldRole=userManager->getUserRole(targetId);
-    cout<<"1.普通学生  2.社团负责人  3.系统管理员  0.取消"<<endl;
-    string newRole;
-    //输错就重新选，选0取消
-    while(true){
-        cout<<"请选择新角色：";
-        int choice=readIntChoice();
-        if(choice==0){
-            cout<<"已取消。"<<endl;
-            return;
-        }
-        if(choice==1){
-            newRole=ROLE_STUDENT;
-            break;
-        }
-        if(choice==2){
-            newRole=ROLE_CLUB_MANAGER;
-            break;
-        }
-        if(choice==3){
-            newRole=ROLE_ADMIN;
-            break;
-        }
-        cout<<"无效的选择，请重新输入！"<<endl;
-    }
-    if(newRole==oldRole){
-        cout<<"该用户已经是这个角色。"<<endl;
-        return;
-    }
+    clubService->showApprovedClubs();
+    cout<<"请输入要更换负责人的社团编号（0返回）：";
     string clubId;
-    if(clubService!=nullptr){
-        clubId=clubService->findClubByLeader(targetId);
-    }
-    //负责着已通过的社团，不能改成别的角色
-    if(!clubId.empty()&&newRole!=ROLE_CLUB_MANAGER){
-        cout<<"该用户是社团"<<clubId<<"的负责人，请先解散该社团再修改角色！"<<endl;
+    cin>>clubId;
+    if(clubId=="0") return;
+    if(!clubService->isClubApproved(clubId)){
+        cout<<"社团不存在或未通过审核，不能更换负责人。"<<endl;
         return;
     }
-    //有待审核的社团成立申请时不能改角色：
-    //审核通过时会把申请人直接改成负责人，之前改的角色（比如管理员）会被静默覆盖。
-    //findAnyClubByLeader() 包含待审核和已通过的社团，上面已经排除了已通过的，所以剩下的就是待审核
-    if(clubId.empty()&&clubService!=nullptr&&!clubService->findAnyClubByLeader(targetId).empty()){
-        cout<<"该用户有待审核的社团成立申请，请先通过、拒绝或解散该申请再修改角色！"<<endl;
+    string oldLeaderId=clubService->getClubLeaderId(clubId);
+    if(userManager->getUserRole(oldLeaderId)!=ROLE_CLUB_MANAGER){
+        cout<<"原负责人账号或角色异常，请先检查账号数据。"<<endl;
         return;
     }
-    //没有已通过的社团，设成负责人也无社团可管
-    if(clubId.empty()&&newRole==ROLE_CLUB_MANAGER){
-        cout<<"该用户没有已通过审核的社团，不能设为社团负责人！"<<endl;
+    cout<<"当前负责人："<<oldLeaderId<<"  "<<userManager->getUserNameById(oldLeaderId)<<endl;
+    vector<string> members=clubService->getClubMemberIds(clubId);
+    cout<<"========可接任的社团成员========"<<endl;
+    bool found=false;
+    for(const string& id:members){
+        if(id!=oldLeaderId && userManager->getUserRole(id)==ROLE_STUDENT
+            && userManager->getUserStatus(id)==USER_NORMAL
+            && clubService->findAnyClubByLeader(id).empty()){
+            cout<<id<<"  "<<userManager->getUserNameById(id)<<endl;
+            found=true;
+        }
+    }
+    if(!found){
+        cout<<"暂无可接任的普通学生成员。"<<endl;
         return;
     }
-    if(userManager->changeRole(targetId,newRole)){
-        cout<<"角色修改成功！（该用户重新登录后生效）"<<endl;
+    cout<<"请输入新负责人的用户Id（0返回）：";
+    string newLeaderId;
+    cin>>newLeaderId;
+    if(newLeaderId=="0") return;
+    bool isMember=false;
+    for(const string& id:members) if(id==newLeaderId) isMember=true;
+    if(!isMember || newLeaderId==oldLeaderId || userManager->getUserRole(newLeaderId)!=ROLE_STUDENT
+        || userManager->getUserStatus(newLeaderId)!=USER_NORMAL
+        || !clubService->findAnyClubByLeader(newLeaderId).empty()){
+        cout<<"新负责人必须是本社团账号正常的普通学生成员，且没有待审核或已负责的社团。"<<endl;
+        return;
     }
+    cout<<"确认将社团"<<clubId<<"由"<<oldLeaderId<<"交给"<<newLeaderId
+        <<"吗？原负责人保留成员身份。1.确认  0.取消"<<endl;
+    if(readIntChoice()!=1){ cout<<"已取消更换。"<<endl; return; }
+    bool saved=persistChange([&](){
+        if(!clubService->changeClubLeader(clubId,newLeaderId) || !saveClubData()) return false;
+        if(!userManager->changeRole(newLeaderId,ROLE_CLUB_MANAGER)) return false;
+        if(clubService->findClubByLeader(oldLeaderId).empty())
+            return userManager->changeRole(oldLeaderId,ROLE_STUDENT);
+        return true;
+    });
+    if(!saved){
+        cout<<"更换失败，社团归属、成员和双方角色均未改变。"<<endl;
+        return;
+    }
+    cout<<"社团负责人已更换，原负责人保留为成员，双方重新登录后生效。"<<endl;
 }
 /*
 函数名：clubManageMenu
@@ -340,11 +343,11 @@ void Admin::clubManageMenu(){
                 break;
             }
             case 2:{
-                auditClub();
+                auditClubMenu();
                 break;
             }
             case 3:{
-                deleteClub();
+                deleteClubMenu();
                 break;
             }
             case 0:{
@@ -365,24 +368,28 @@ void Admin::viewClubInfo(){
     clubService->showAllClubs();
 }
 /*
-函数名：auditClub
+函数名：auditClubMenu
 功能：审核学生提交的社团成立申请
 实现步骤：
     1. 显示所有社团，输入要审核的社团编号；
     2. 循环读入选择：1 通过、2 拒绝、0 取消，输错重新选；
     3. 选择通过时，先校验申请人当前不是管理员：通过后会把申请人改成负责人，
-       管理员身份会被覆盖，所以要求先把他改回普通学生再审核；
+       管理员身份不能由社团审核覆盖，不符合条件时拒绝通过；
     4. 调用社团模块的 auditClub() 修改审核状态，社团不存在或已审核过时返回 false；
     5. 成功后保存社团文件；
     6. 如果是通过，再把申请人的角色改为 ClubManager，申请人重新登录后就能使用社团管理功能。
 */
-void Admin::auditClub(){
+void Admin::auditClubMenu(){
     clubService->showAllClubs();
     cout<<"请输入要审核的社团编号：";
     string clubId;
     cin>>clubId;
-    if(clubService->getClubStatus(clubId)!=STATUS_PENDING){
-        cout<<"审核失败：社团不存在或已经审核过。"<<endl; return;
+    string status=clubService->getClubStatus(clubId);
+    if(status.empty()){
+        cout<<"审核失败：社团不存在。"<<endl; return;
+    }
+    if(status!=STATUS_PENDING){
+        cout<<"审核失败：该社团不是待审核状态。"<<endl; return;
     }
     int choice;
     do { cout<<"1.通过  2.拒绝  0.取消："; choice=readIntChoice(); } while(choice<0||choice>2);
@@ -390,19 +397,32 @@ void Admin::auditClub(){
     bool passed=choice==1;
     string leaderId=clubService->getClubLeaderId(clubId);
     if(passed && (!userManager || userManager->getUserRole(leaderId)!=ROLE_STUDENT)){
-        cout<<"不能通过：申请人必须是现有普通学生。若已成为管理员，请先拒绝或撤销成立申请，再处理角色；不会覆盖当前角色。"<<endl;
+        cout<<"审核失败：申请人必须是现有普通学生。若已成为管理员，请先拒绝或撤销成立申请，再处理角色；不会覆盖当前角色。"<<endl;
         return;
     }
+    string reason;
     bool saved=persistChange([&](){
-        if(!clubService->auditClub(clubId,passed)||!saveClubData()) return false;
-        return !passed||userManager->changeRole(leaderId,ROLE_CLUB_MANAGER);
+        if(!clubService->auditClub(clubId,passed,&reason)) return false;
+        if(!saveClubData()){
+            reason="社团数据保存失败。";
+            return false;
+        }
+        if(passed && !userManager->changeRole(leaderId,ROLE_CLUB_MANAGER)){
+            reason="申请人角色更新或保存失败。";
+            return false;
+        }
+        return true;
     });
-    if(!saved){ cout<<"审核未保存，社团状态及用户角色均未改变。"<<endl; return; }
+    if(!saved){
+        if(reason.empty()) reason="文件保存失败，请检查文件是否只读、被占用或磁盘空间不足。";
+        cout<<"审核失败："<<reason<<"审核未保存，社团状态及用户角色均未改变。"<<endl;
+        return;
+    }
     if(passed) cout<<"审核通过，"<<leaderId<<"已成为社团负责人！（重新登录后生效）"<<endl;
     else cout<<"已拒绝该社团的申请！"<<endl;
 }
 /*
-函数名：deleteClub
+函数名：deleteClubMenu
 功能：解散违规社团并归档，保留已结束活动、历史报名和积分
 实现步骤：
     1. 检查社团存在且尚未解散，再向管理员确认；
@@ -410,10 +430,10 @@ void Admin::auditClub(){
     3. 取消该社团尚未结束的活动及报名，已结束活动和历史积分保留；
     4. 原负责人没有其他已通过的社团，且仍是负责人角色时，改回普通学生；
     5. 用 persistChange 一起保存关联数据，任一步失败则恢复本次改动。
-关键点：函数沿用 deleteClub 这个名字，但这里做的是解散归档，不能直接删除社团资料，
+关键点：deleteClubMenu() 执行解散归档，不能直接删除社团资料，
         否则保留的历史活动会失去所属社团。
 */
-void Admin::deleteClub(){
+void Admin::deleteClubMenu(){
     clubService->showAllClubs();
     cout<<"请输入要解散的社团编号：";
     string clubId;
@@ -461,10 +481,10 @@ void Admin::activityManageMenu()
                 viewActivityInfo();
                 break;
             case 2:
-                auditActivity();
+                auditActivityMenu();
                 break;
             case 3:
-                removeActivity();
+                removeActivityMenu();
                 break;
             case 0:
                 return;
@@ -480,7 +500,7 @@ void Admin::activityManageMenu()
     1. 从活动模块取出全部活动，没有活动时提示"暂无活动"；
     2. 计算名称列的宽度：取所有"名称（类型）"中最长的显示宽度再加 2，最少 20，
        这样名称再长也能和其他行对齐；
-    3. 逐行输出编号、名称和类型、所属社团、审核状态，用 padText() 按显示宽度补空格；
+    3. 逐行输出编号、名称和类型、起止时间、所属社团、审核状态，用 padText() 按显示宽度补空格；
     4. 最后空一行输出活动总数。
 关键点：中文字符在控制台占 2 列，用 string 的 size() 算宽度会对不齐，
         所以用 TextUtils.h 中的 displayWidth() 计算。
@@ -506,17 +526,18 @@ void Admin::viewActivityInfo()
             nameW=w;
         }
     }
-    //每个活动一行：编号、名称（类型）、所属社团、审核状态
+    //每个活动一行：编号、名称（类型）、起止时间、所属社团、审核状态
     for(const Activity* act:acts){
         //按显示宽度补空格，让各列对齐
         cout<<padText(act->getActivityId(),6)<<padText(act->getName()+"（"+act->getTypeName()+"）",nameW)
+            <<padText(act->getStartTime()+" ~ "+act->getEndTime(),38)
             <<padText(act->getClubId(),6)<<Activity::statusText(act->getStatus())<<endl;
     }
     cout<<endl;
     cout<<"共"<<acts.size()<<"个活动"<<endl;
 }
 /*
-函数名：auditActivity
+函数名：auditActivityMenu
 功能：审核社团负责人发布的活动
 实现步骤：
     1. 显示待审核活动，没有待审核活动时直接返回；
@@ -527,7 +548,7 @@ void Admin::viewActivityInfo()
 说明：过期活动不能通过，但可以拒绝；拒绝不要求所属社团仍是已通过状态。
       reason 接收活动模块给出的失败原因，菜单只负责显示，不重复推测原因。
 */
-void Admin::auditActivity()
+void Admin::auditActivityMenu()
 {
     if(activityManager==nullptr){
         cout<<"活动数据未加载！"<<endl;
@@ -559,7 +580,7 @@ void Admin::auditActivity()
     }
     cout<<endl;
     int choice;
-    //输错就重新选，选0可以随时取消
+    //输错重新选，选0可以随时取消
     while(true){
         cout<<"1.通过  2.拒绝  0.取消"<<endl;
         cout<<"请选择：";
@@ -587,15 +608,15 @@ void Admin::auditActivity()
     }
 }
 /*
-函数名：removeActivity
-功能：删除违规活动，报名记录一起删除
+函数名：removeActivityMenu
+功能：删除未结束的违规活动，报名记录一起删除
 实现步骤：
     1. 调用 viewActivityInfo() 显示所有活动，没有活动时直接返回；
-    2. 输入活动编号，检查活动是否存在；
+    2. 输入活动编号，检查活动是否存在、是否已经结束；
     3. 确认后调用活动模块的 removeActivity() 删除。
-说明：管理员可以删除任何社团的活动，所以不需要像负责人那样检查所属社团。
+说明：管理员可以删除任何社团未结束的活动，不检查所属社团；已结束活动保留为历史。
 */
-void Admin::removeActivity()
+void Admin::removeActivityMenu()
 {
     viewActivityInfo();
     if(activityManager==nullptr||activityManager->getAllActivities().empty()){
@@ -605,8 +626,13 @@ void Admin::removeActivity()
     cout<<endl;
     cout<<"请输入要删除的活动编号：";
     cin>>activityId;
-    if(activityManager->findActivity(activityId)==nullptr){
+    Activity* act=activityManager->findActivity(activityId);
+    if(act==nullptr){
         cout<<"未找到该活动！"<<endl;
+        return;
+    }
+    if(act->hasEnded(activityManager->now())){
+        cout<<"已结束活动保留为历史，不能删除。"<<endl;
         return;
     }
     cout<<"确认删除该活动吗？报名记录会一起删除。1.确认  0.取消"<<endl;
@@ -616,13 +642,13 @@ void Admin::removeActivity()
         return;
     }
     if(activityManager->removeActivity(activityId)) cout<<"活动已删除！"<<endl;
-    else cout<<"删除失败：活动不存在或文件保存失败，原记录保留。"<<endl;
+    else cout<<"删除失败：活动不存在、已结束或文件保存失败，原记录保留。"<<endl;
 }
 /*
 函数名：systemStatisticsMenu
 功能：数据统计子菜单
     1 用户数量统计：总人数和各角色人数，由 UserManager::showUserStatistics() 输出；
-    2 社团数量统计：社团总数；
+    2 社团数量统计：未解散的社团总数；
     3 活动数量统计：活动总数、已通过数、待审核数；
     4 社团活跃度排行：由社团模块根据活动模块的数据计算并排序。
 说明：每项统计前先检查对应模块的指针是否为空，避免访问空指针导致程序崩溃
@@ -655,7 +681,7 @@ void Admin::systemStatisticsMenu()
                 if(clubService!=nullptr){
                     cout<<endl;
                     cout<<"========社团统计========"<<endl;
-                    cout<<"社团总数（含已解散归档）："<<clubService->getClubCount()<<endl;
+                    cout<<"社团总数（不含已解散）："<<clubService->getClubCount()<<endl;
                 }
                 break;
 

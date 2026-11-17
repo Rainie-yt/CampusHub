@@ -37,7 +37,6 @@ public:
     bool save() const;
     void copyStateTo(ActivityManager& target) const;
     void swapState(ActivityManager& other);
-    bool resubmitActivity(const std::string& activityId, const std::string& operatorClubId = "");
     int cancelUnendedByClub(const std::string& clubId);
     void setAutoSave(bool on) { autoSave = on; }   // 默认开启：每次修改后自动保存
 
@@ -52,11 +51,11 @@ public:
     bool publishActivity(const std::string& clubId);
     // 交互式修改活动。接口表只传 activityId；operatorClubId 可选，非空时必须与
     // 活动所属社团一致（额外的权限保护），留空则不检查。
-    // 已有人报名/候补时不允许修改时间；修改后的结束时间必须晚于当前时间。
+    // 已有报名或候补时不允许修改任何资料；修改后的结束时间必须晚于当前时间。
     bool modifyActivity(const std::string& activityId, const std::string& operatorClubId = "");
-    // 社团负责人删除活动。operatorClubId 的规则同上。
+    // 社团负责人删除未结束活动。operatorClubId 的规则同上，已结束活动保留为历史。
     bool deleteActivity(const std::string& activityId, const std::string& operatorClubId = "");
-    // 管理员删除违规活动（不检查社团）。
+    // 管理员删除未结束的违规活动（不检查社团）；已结束活动及名单不能删除。
     bool removeActivity(const std::string& activityId);
     // approve 为 true 表示通过，false 表示拒绝；已结束的活动只能拒绝。
     // reason 接收失败原因，成功时清空；不需要原因时可省略，传入时写 &reason。
@@ -69,11 +68,12 @@ public:
     std::vector<const Activity*> getAllActivities() const;
     std::vector<const Activity*> getApprovedActivities() const;
     std::vector<const Activity*> getPendingActivities() const;
-    std::vector<const Activity*> getActivitiesByClub(const std::string& clubId) const;
+    std::vector<const Activity*> getActivitiesByClub(const std::string& clubId, bool approvedOnly = false) const;
 
     void showApprovedActivities() const;               // 学生浏览
     void showPendingActivities() const;                // 管理员审核列表
-    void showActivitiesByClub(const std::string& clubId) const;
+    // 本社团活动显示完整起止时间和审核状态；approvedOnly 为 true 时只显示已通过的活动。
+    void showActivitiesByClub(const std::string& clubId, bool approvedOnly = false) const;
     void showActivityDetail(const std::string& activityId) const;
 
     // ---------- 报名（学生）----------

@@ -30,7 +30,7 @@ class UserManager{
     //构造函数，设置用户数据文件路径
     UserManager();
     // 启动时只读校验账号格式和重复Id；现有文件出错时返回false，不修改文件。
-    // 文件不存在时允许首次注册创建，旧六字段记录仍受支持。
+    // 文件不存在时允许首次注册创建，旧六字段记录仍支持。
     bool validateData();
     //功能：用户登录。返回：登录成功返回对应的用户对象指针，失败返回 nullptr
     User* login();
@@ -40,7 +40,7 @@ class UserManager{
     bool reserveHistoricalIds(const ClubService& clubs,const ActivityManager& activities);
     //功能：把用户的最新数据写回 users.txt。参数：user 要保存的用户对象；返回：是否成功
     bool updateUser(User* user);
-    //功能：修改指定用户的角色并写回文件，供管理员审核社团、修改角色时使用。参数：userId 用户Id，newRole 新角色
+    //功能：修改指定用户的角色并写回文件，供管理员审核社团、更换负责人时使用。参数：userId 用户Id，newRole 新角色
     bool changeRole(const string& userId,const string& newRole);
     //功能：按用户Id查用户名。参数：userId 用户Id；返回：用户名，找不到返回空字符串
     string getUserNameById(const string& userId);

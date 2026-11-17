@@ -120,11 +120,13 @@ int nameWidth(const vector<const Activity*>& v) {
 }
 
 // 列表中的一行：编号  名称（类型）  时间  已报名/上限人  [状态]
-void printBrief(const Activity& a, int nameW, const string& suffix = "") {
+// fullTime 为 true 时写全开始、结束日期，本社团活动列表使用这种显示方式。
+void printBrief(const Activity& a, int nameW, const string& suffix = "", bool fullTime = false) {
     // 按显示宽度补空格，让各列对齐（中文占2格）
     string count = std::to_string(a.getCur()) + "/" + std::to_string(a.getMax()) + "人";
+    string time = fullTime ? a.getStartTime() + " ~ " + a.getEndTime() : timeRange(a);
     cout << padText(a.getActivityId(), 6) << padText(a.getName() + "（" + a.getTypeName() + "）", nameW)
-         << padText(timeRange(a), 24) << padText(count, 10);
+         << padText(time, fullTime ? 38 : 24) << padText(count, 10);
     if (!suffix.empty()) cout << suffix;
     cout << "\n";
 }
@@ -364,14 +366,14 @@ bool ActivityManager::publishActivity(const string& clubId) {
 函数名：modifyActivity
 功能：修改活动资料，成功后重新提交审核
 参数：activityId 活动编号；operatorClubId 操作者的社团编号，非空时必须与活动所属社团一致
-返回值：有修改且保存成功返回 true；没有修改、无权限、活动已结束或保存失败返回 false。
+返回值：有修改且保存成功返回 true；没有修改、无权限、活动已结束、已有报名或候补、保存失败返回 false。
 实现步骤：
-    1. 检查活动归属和结束时间，再备份当前活动及报名数据；
+    1. 检查活动归属、结束时间和报名名单；有人报名或候补时直接返回；
     2. 逐项读取新资料，直接回车表示保留原值，不合法的项目不替换原值；
-    3. 没有人报名或候补时才能改时间，新的结束时间必须晚于当前时间；
+    3. 校验起止时间，新的结束时间必须晚于当前时间；
     4. 保存前再检查是否过期，然后改为 pending，暂停新报名并等待重新审核；
     5. 保存失败或填写期间已经过期时，用备份恢复本次修改。
-关键点：修改资料不会删除已有报名和候补；审核通过之前也不提前递补。
+关键点：已有报名或候补时不允许修改任何资料，避免学生报名后活动内容发生变化。
 */
 bool ActivityManager::modifyActivity(const string& activityId, const string& operatorClubId) {
     Activity* a = findActivity(activityId);
@@ -379,10 +381,15 @@ bool ActivityManager::modifyActivity(const string& activityId, const string& ope
     if (!operatorClubId.empty() && a->getClubId() != operatorClubId) { cout << "无权限：只能修改本社团的活动。\n"; return false; }
 
     if(a->hasEnded(now())) { cout<<"已结束活动保留为历史，不能修改。\n"; return false; }
+    // 正式报名和候补都算已报名，不能在学生报名后改动活动资料。
+    if(!a->getParticipants().empty() || !a->getWaitList().empty()){
+        cout << "该活动已有报名或候补，不能修改活动资料。\n";
+        return false;
+    }
     ActivityManager previous;
     copyStateTo(previous);
     a->showInfo();
-    cout << "\n以下直接回车表示保持不变；修改成功后需重新审核，已有报名和候补保留。\n";
+    cout << "\n以下直接回车表示保持不变；修改成功后需重新审核。\n";
     bool changed = false;
 
     string s = readLine("新名称：");
@@ -399,27 +406,22 @@ bool ActivityManager::modifyActivity(const string& activityId, const string& ope
             cout << "人数上限无效（必须大于 0 且不小于当前报名人数），该项未修改。\n";
         } else {
             changed = true;
-            // 改动将重新送审，候补在审核通过后再递补。
         }
     }
 
-    if (a->getParticipants().empty() && a->getWaitList().empty()) {
-        string ns = readLine("新开始时间（YYYY-MM-DD HH:MM）：");
-        string ne = readLine("新结束时间（YYYY-MM-DD HH:MM）：");
-        if (!ns.empty() || !ne.empty()) {
-            if (ns.empty()) ns = a->getStartTime();
-            if (ne.empty()) ne = a->getEndTime();
-            // 校验为 YYYY-MM-DD HH:MM 后，各部分固定宽度，可以直接按字符串比较先后。
-            if (!Activity::isValidTime(ns) || !Activity::isValidTime(ne) || ne <= ns) {
-                cout << "时间无效（格式错误或结束不晚于开始），该项未修改。\n";
-            } else if (ne <= now()) {
-                cout << "结束时间必须晚于当前时间，该项未修改。\n";
-            } else if (a->setTime(ns, ne)) {
-                changed = true;
-            }
+    string ns = readLine("新开始时间（YYYY-MM-DD HH:MM）：");
+    string ne = readLine("新结束时间（YYYY-MM-DD HH:MM）：");
+    if (!ns.empty() || !ne.empty()) {
+        if (ns.empty()) ns = a->getStartTime();
+        if (ne.empty()) ne = a->getEndTime();
+        // 校验为 YYYY-MM-DD HH:MM 后，各部分固定宽度，可以直接按字符串比较先后。
+        if (!Activity::isValidTime(ns) || !Activity::isValidTime(ne) || ne <= ns) {
+            cout << "时间无效（格式错误或结束不晚于开始），该项未修改。\n";
+        } else if (ne <= now()) {
+            cout << "结束时间必须晚于当前时间，该项未修改。\n";
+        } else if (a->setTime(ns, ne)) {
+            changed = true;
         }
-    } else {
-        cout << "该活动已有人报名或候补，时间不可修改。\n";
     }
 
     if (changed) {
@@ -434,7 +436,7 @@ bool ActivityManager::modifyActivity(const string& activityId, const string& ope
             swapState(previous);
             return false;
         }
-        cout << "活动信息已修改并重新提交审核，已有报名和候补保留，审核通过前暂停新报名。\n";
+        cout << "活动信息已修改并重新提交审核，审核通过后才能报名。\n";
     } else {
         cout << "没有任何修改。\n";
     }
@@ -447,9 +449,17 @@ bool ActivityManager::deleteActivity(const string& activityId, const string& ope
     return removeActivity(activityId);
 }
 
+/*
+函数名：removeActivity
+功能：删除尚未结束的活动及其报名、候补记录
+说明：负责人和管理员的删除操作都经过这里。已结束活动保留为历史，避免影响学生积分；
+      删除前检查结束时间，保存失败时把活动和名单恢复到原位置。
+*/
 bool ActivityManager::removeActivity(const string& activityId) {
     for(size_t i=0;i<activities.size();++i){
         if(activities[i]->getActivityId()!=activityId) continue;
+        // 已结束活动不能删除，保留原活动和名单用于历史查询、积分统计。
+        if(activities[i]->hasEnded(now())) return false;
         std::unique_ptr<Activity> old=std::move(activities[i]);
         activities.erase(activities.begin()+i);
         if(!autoSaveIfNeeded()){
@@ -540,10 +550,11 @@ vector<const Activity*> ActivityManager::getPendingActivities() const {
     return r;
 }
 
-vector<const Activity*> ActivityManager::getActivitiesByClub(const string& clubId) const {
+vector<const Activity*> ActivityManager::getActivitiesByClub(const string& clubId, bool approvedOnly) const {
     vector<const Activity*> r;
     for (size_t i = 0; i < activities.size(); ++i)
-        if (activities[i]->getClubId() == clubId) r.push_back(activities[i].get());
+        if (activities[i]->getClubId() == clubId && (!approvedOnly || activities[i]->isApproved()))
+            r.push_back(activities[i].get());
     return r;
 }
 
@@ -579,13 +590,20 @@ void ActivityManager::showPendingActivities() const {
     }
 }
 
-void ActivityManager::showActivitiesByClub(const string& clubId) const {
-    vector<const Activity*> v = getActivitiesByClub(clubId);
+/*
+函数名：showActivitiesByClub
+功能：显示本社团活动的基本资料、完整起止时间和审核状态
+参数：clubId 社团编号；approvedOnly 为 true 时只列出已通过审核的活动
+说明：修改、删除时显示全部活动；查看和管理报名时只显示已通过的活动。
+      已通过且已结束的活动仍保留在列表中，方便查看历史报名。
+*/
+void ActivityManager::showActivitiesByClub(const string& clubId, bool approvedOnly) const {
+    vector<const Activity*> v = getActivitiesByClub(clubId, approvedOnly);
     cout << "========本社团活动========\n";
-    if (v.empty()) cout << "暂无活动。\n";
+    if (v.empty()) cout << (approvedOnly ? "暂无已通过审核的活动。\n" : "暂无活动。\n");
     int w = nameWidth(v);
     for (size_t i = 0; i < v.size(); ++i) {
-        printBrief(*v[i], w, Activity::statusText(v[i]->getStatus()));
+        printBrief(*v[i], w, Activity::statusText(v[i]->getStatus()), true);
     }
 }
 
@@ -830,27 +848,6 @@ void ActivityManager::copyStateTo(ActivityManager& target) const {
 void ActivityManager::swapState(ActivityManager& other) {
     activities.swap(other.activities);
     std::swap(nextId, other.nextId);
-}
-
-/*
-函数名：resubmitActivity
-功能：把被拒绝且未结束的活动重新提交审核，保留原编号和报名记录
-参数：activityId 活动编号；operatorClubId 非空时必须与活动所属社团一致
-返回值：提交并保存成功返回 true；状态、归属、结束时间不符合要求或保存失败返回 false。
-实现步骤：检查活动后将状态改为 pending，再保存；保存失败则恢复 rejected。
-*/
-bool ActivityManager::resubmitActivity(const string& activityId, const string& operatorClubId) {
-    Activity* a = findActivity(activityId);
-    if (!a || a->getStatus() != "rejected" || a->hasEnded(now()) ||
-        (!operatorClubId.empty() && a->getClubId() != operatorClubId)) {
-        return false;
-    }
-    a->setStatus("pending");
-    if (!autoSaveIfNeeded()) {
-        a->setStatus("rejected");
-        return false;
-    }
-    return true;
 }
 
 /*

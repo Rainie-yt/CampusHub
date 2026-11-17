@@ -221,3 +221,17 @@ void Club::dissolve(){
     memberIds.clear();
     applicantIds.clear();
 }
+
+/*
+函数名：changeLeader
+功能：把社团交给现有成员，原负责人继续保留为成员
+参数：newLeaderId 新负责人的用户编号
+返回值：社团未通过、不是成员或与原负责人相同时返回 false，否则返回 true
+*/
+bool Club::changeLeader(const string& newLeaderId){
+    if(status!="approved" || newLeaderId==leaderId || !hasMember(newLeaderId)) return false;
+    // 旧数据里的负责人可能没有单独记入成员名单，交接时补上，避免失去成员身份。
+    if(!hasMember(leaderId) && !addMember(leaderId)) return false;
+    leaderId=newLeaderId;
+    return true;
+}

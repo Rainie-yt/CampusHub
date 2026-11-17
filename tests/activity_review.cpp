@@ -83,7 +83,11 @@ int main(){
     std::string booked=m.addActivity(act());
     check(m.auditActivity(booked) && m.tryJoin("S1",booked)==JoinResult::SUCCESS &&
           m.tryJoin("S2",booked)==JoinResult::WAITLISTED,"registration fixture");
-    check(modify(m,booked,"Changed\n\n\n\n"),"edit retains registrations and resubmits");
+    check(!modify(m,booked,"Changed\n") && m.findActivity(booked)->getName()=="Test" &&
+          m.findActivity(booked)->isApproved() && m.findActivity(booked)->hasParticipant("S1") &&
+          m.findActivity(booked)->inWaitList("S2"),"booked activity cannot be edited");
+    // 模拟旧版本留下的带报名待审核活动，仍需兼容过期后拒绝并保留名单。
+    m.findActivity(booked)->setStatus("pending");
     m.setClock("2035-06-01 16:00");
     check(m.auditActivity(booked,false) && m.findActivity(booked)->hasParticipant("S1") &&
           m.findActivity(booked)->inWaitList("S2") && m.getUserPoints("S1")==0,

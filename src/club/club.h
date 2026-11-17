@@ -20,6 +20,9 @@ public:
 	string getClubName()const;
 	string getDescription()const;
 	string getLeaderId()const;
+    // 更换已通过社团的负责人：新负责人必须是现有成员，原负责人保留为成员。
+    // 只修改社团数据；两人的账号角色由管理员一起处理和保存。
+    bool changeLeader(const string& newLeaderId);
 	string getStatus()const;
 	//修改名称,拒绝空名称或全为空白的名称
 	// 成功返回true，失败返回false，并保留原名称

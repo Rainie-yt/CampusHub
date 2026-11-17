@@ -6,7 +6,7 @@
     - 公有继承自 Student，负责人本身也是学生，可以直接使用学生的全部功能
       （个人信息、社团中心、活动报名、兴趣推荐），这些函数不用重新编写；
     - 在学生功能的基础上，增加"社团管理"菜单，用来管理自己负责的社团、成员和活动。
-多态：重写 showMenu()，菜单在学生菜单的基础上多了"6.社团管理"。
+多态：重写 showMenu()，菜单在学生菜单的基础上多了"5.社团管理"。
 数据成员：clubId 负责的社团编号，登录后在 showMenu() 中通过社团模块按负责人查出。
 主要职责：查看和修改社团信息、管理成员（查看、移除）、审核加入申请、
           发布/修改/删除本社团活动、查看和管理活动报名。
@@ -27,9 +27,9 @@ class ClubManager:public Student{
     //功能：显示我负责的社团的详细资料
     void showClubInfo();
     //功能：修改社团名称和简介
-    void modifyClubInfo();
+    void modifyClubInfoMenu();
     //功能：成员管理菜单：成员列表、加入申请
-    void manageMembers();
+    void manageMembersMenu();
     //功能：成员列表，按序号选择成员
     void memberListMenu();
     //功能：对选中的成员操作：查看完整信息、移除。参数：memberId 成员的用户Id
@@ -41,17 +41,16 @@ class ClubManager:public Student{
     //功能：按用户Id查用户名，用于名单显示。参数：id 用户Id；返回：用户名，找不到返回空字符串
     string nameOf(const string& id);
     //功能：发布本社团的新活动
-    void publishActivity();
+    void publishActivityMenu();
     //功能：修改本社团的活动
-    void modifyActivity();
+    void modifyActivityMenu();
     //功能：删除本社团的活动
-    void deleteActivity();
+    void deleteActivityMenu();
     //功能：查看本社团某个活动的报名情况
-    void showActivityRegistration();
+    void showActivityRegistrationMenu();
     //功能：管理本社团某个活动的报名成员（移除）
-    void manageRegistration();
-    //功能：显示本社团活动并输入编号。参数：prompt 输入提示；返回：活动编号，不是本社团的活动返回空字符串
-    string selectMyActivity(const string& prompt);
-    //功能：返回负责的社团编号
-    string getClubId()const;
+    void manageRegistrationMenu();
+    //功能：显示本社团活动并输入编号。prompt 为输入提示，approvedOnly 为 true 时只允许选择已通过的活动。
+    //返回：符合要求的活动编号；没有可选活动、编号不存在或不符合要求时返回空字符串。
+    string selectMyActivity(const string& prompt, bool approvedOnly=false);
 };

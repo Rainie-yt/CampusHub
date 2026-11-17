@@ -28,10 +28,12 @@ class Student:public User{
     void showMenu();
     //功能：个人信息管理菜单，显示个人信息，可修改密码、管理兴趣标签
     void showInfoMenu();
-    //功能：修改姓名，保存失败时恢复原值
+    //功能：修改用户名，保存失败时恢复原值
     void modifyName();
     //功能：修改专业，保存失败时恢复原值
     void modifyMajor();
+    //功能：活动中心菜单，可进入报名和我的报名活动，学生与负责人共用
+    void activityMenu();
     //功能：我的报名活动菜单，显示已报名和候补的活动、积分，可取消报名
     void showMyActivityMenu();
     //功能：活动报名，浏览已通过且未结束的活动，查看详情后确认报名
@@ -52,8 +54,8 @@ class Student:public User{
     void showInterests()const;
     //功能：返回兴趣标签列表，写回文件时使用
     vector<string> getInterests()const;
-    //功能：按兴趣标签推荐社团和活动
-    void recommendClubs()const;
+    //功能：按兴趣显示社团和活动推荐，各自检查数据是否可用
+    void showRecommendations()const;
     //功能：社团中心菜单：浏览、搜索、查看详情、申请加入、我的申请、我的社团、退出、申请成立
     void clubMenu();
     //功能：申请成立社团，选择类型并填写资料，提交后等待管理员审核

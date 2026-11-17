@@ -150,7 +150,7 @@ void ClubService::showAllClubs()const
 			<< statusText << endl;
 	}
 	cout << endl;
-	cout << "共" << clubs.size() << "个社团" << endl;
+	cout << "共" << clubs.size() << "条社团记录（含已解散归档）" << endl;
 }
 void ClubService::showClubInfo(const string& clubId)const
 {
@@ -226,14 +226,24 @@ bool ClubService::modifyClubInfo(const string& operatorId, const string& clubId,
 	clubs[index]->changeDescription(newDescription);
 	return true;
 }
-bool ClubService::auditClub(const string& clubId, bool passed)
+/*
+函数名：auditClub
+功能：审核社团成立申请，检查失败时通过 reason 说明原因
+说明：只修改内存；账号角色及文件保存由管理员协调，保存失败的原因由菜单补充。
+*/
+bool ClubService::auditClub(const string& clubId, bool passed, string* reason)
 {
-	int index = findClubIndex(clubId);
-	if (index == -1)
-	{
-		return false;
-	}
-	return clubs[index]->audit(passed);
+    if(reason) reason->clear();
+    int index=findClubIndex(clubId);
+    if(index==-1){
+        if(reason) *reason="社团不存在。";
+        return false;
+    }
+    if(clubs[index]->getStatus()!="pending"){
+        if(reason) *reason="该社团不是待审核状态。";
+        return false;
+    }
+    return clubs[index]->audit(passed);
 }
 bool ClubService::joinClub(const string& userId, const string& clubId)
 {
@@ -774,44 +784,66 @@ bool ClubService::applyToJoin(const string& userId, const string& clubId)
 	//其余检查由Club:addApplicant完成
 	return clubs[index]->addApplicant(userId);
 }
+/*
+函数名：approveApplication
+功能：通过入社申请，把申请人加入成员名单，再移除申请
+说明：reason 接收失败原因；成为成员失败时保留申请，成功后由调用者保存文件。
+*/
 bool ClubService::approveApplication(const string& operatorId,
-	const string& clubId, const string& userId)
+    const string& clubId, const string& userId, string* reason)
 {
-	int index = findClubIndex(clubId);
-	if (index == -1)
-	{
-		return false;
-	}
-	if (clubs[index]->getLeaderId() != operatorId)
-	{
-		return false;
-	}
-	if (clubs[index]->hasApplicant(userId) == false)
-	{
-		return false;
-	}
-
-	//成为正式成员失败时，保留原申请
-	if (clubs[index]->addMember(userId) == false)
-	{
-		return false;
-	}
-	clubs[index]->removeApplicant(userId);
-	return true;
+    if(reason) reason->clear();
+    int index=findClubIndex(clubId);
+    if(index==-1){
+        if(reason) *reason="社团不存在。";
+        return false;
+    }
+    if(clubs[index]->getLeaderId()!=operatorId){
+        if(reason) *reason="无权限：只有本社团负责人可以审核加入申请。";
+        return false;
+    }
+    if(clubs[index]->getStatus()!="approved"){
+        if(reason) *reason="社团未通过审核或已解散，不能通过加入申请。";
+        return false;
+    }
+    if(!clubs[index]->hasApplicant(userId)){
+        if(reason) *reason="该用户不在待审核申请名单中。";
+        return false;
+    }
+    if(clubs[index]->hasMember(userId)){
+        if(reason) *reason="该用户已经是社团成员。";
+        return false;
+    }
+    if(!clubs[index]->addMember(userId)){
+        if(reason) *reason="申请人编号无效，无法加入成员名单。";
+        return false;
+    }
+    clubs[index]->removeApplicant(userId);
+    return true;
 }
+/*
+函数名：rejectApplication
+功能：拒绝入社申请并从待审核名单中移除
+说明：reason 接收社团不存在、无权限或申请不存在等失败原因；不在这里保存文件。
+*/
 bool ClubService::rejectApplication(const string& operatorId,
-	const string& clubId, const string& userId)
+    const string& clubId, const string& userId, string* reason)
 {
-	int index = findClubIndex(clubId);
-	if (index == -1)
-	{
-		return false;
-	}
-	if (clubs[index]->getLeaderId()!= operatorId)
-	{
-		return false;
-	}
-	return clubs[index]->removeApplicant(userId);
+    if(reason) reason->clear();
+    int index=findClubIndex(clubId);
+    if(index==-1){
+        if(reason) *reason="社团不存在。";
+        return false;
+    }
+    if(clubs[index]->getLeaderId()!=operatorId){
+        if(reason) *reason="无权限：只有本社团负责人可以审核加入申请。";
+        return false;
+    }
+    if(!clubs[index]->hasApplicant(userId)){
+        if(reason) *reason="该用户不在待审核申请名单中。";
+        return false;
+    }
+    return clubs[index]->removeApplicant(userId);
 }
 bool ClubService::showApplications(const string& operatorId,
 	const string& clubId)const
@@ -915,14 +947,14 @@ bool ClubService::loadApplications(const string& fileName)
 	clubs.swap(loadedService.clubs);
 	return true;
 }
+// 已解散社团保留在文件中作为历史，但不计入当前社团数量。
 int ClubService::getClubCount()const
 {
-	int count = 0;
-	for (int i = 0; i < clubs.size(); i++)
-	{
-		count++;
-	}
-	return count;
+    int count=0;
+    for(size_t i=0;i<clubs.size();i++){
+        if(clubs[i]->getStatus()!="dissolved") ++count;
+    }
+    return count;
 }
 vector<ClubBrief>ClubService::getApprovedClubBriefs()const
 {
@@ -1182,4 +1214,16 @@ bool ClubService::dissolveClub(const string& clubId)
 	}
 	clubs[i]->dissolve();
 	return true;
+}
+
+/*
+函数名：changeClubLeader
+功能：更换社团负责人，防止新负责人同时负责或申请其他社团
+参数：clubId 社团编号；newLeaderId 新负责人编号
+返回值：社团不存在、未通过、新负责人不符合条件时返回 false
+*/
+bool ClubService::changeClubLeader(const string& clubId, const string& newLeaderId){
+    int index=findClubIndex(clubId);
+    if(index==-1 || !findAnyClubByLeader(newLeaderId).empty()) return false;
+    return clubs[index]->changeLeader(newLeaderId);
 }

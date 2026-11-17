@@ -91,16 +91,16 @@ public:
 	//社团不存在、操作者不是负责人或成员不存在时返回false
 	bool removeClubMember(const string& operatorId, const string& clubId,
 		const string& userId);
-	//负责人通过加入申请
+	//负责人通过加入申请；reason 可选，用于接收失败原因，成功时清空
 	//社团不存在、非负责人或没有该申请时返回false
 	//成功后将申请人加入成员名单，并移除待审核申请
 	bool approveApplication(const string& operatorId,
-		const string& clubId, const string& userId);
-	//负责人拒绝加入申请
+		const string& clubId, const string& userId, string* reason=nullptr);
+	//负责人拒绝加入申请；reason 可选，用于接收失败原因，成功时清空
 	//社团不存在、非负责人或申请不存在时返回false
 	//成功后移除申请，不增加成员
 	bool rejectApplication(const string& operatorId,
-		const string& clubId, const string& userId);
+		const string& clubId, const string& userId, string* reason=nullptr);
 	//负责人查看待审核的加入申请
 	//社团不存在或非负责人时返回false
 	//有权限时显示名单并返回true，名单为空时也返回true
@@ -113,12 +113,15 @@ public:
 	bool addClub(const Club& club);
 	//显示所有社团的基本资料
 	void showAllClubs()const;
-	//审核待审核的社团
+	//审核待审核的社团；reason 可选，用于接收失败原因，成功时清空
 	//passed:true表示通过，false表示拒绝
 	//返回值表示操作是否成功，拒绝申请也可以返回true
 	//社团不存在或已审核时返回false
 	//调用前需要检查当前用户是否为管理员
-	bool auditClub(const string& clubId, bool passed);
+	bool auditClub(const string& clubId, bool passed, string* reason=nullptr);
+    // 更换已通过社团的负责人，新负责人必须是本社团成员且没有其他待审核或已通过的社团。
+    // 只修改内存，账号身份检查、角色修改和保存由管理员协调完成。
+    bool changeClubLeader(const string& clubId, const string& newLeaderId);
 	// 旧的删除方法，目前菜单里没有用。这里只删社团，不处理活动和负责人。
 	// 管理员解散社团时用 dissolveClub，才能保留历史记录。
 	// 社团不存在或仍有成员时返回false
@@ -154,7 +157,7 @@ public:
 	//查询用户负责的社团，包括待审核和已通过的社团，不包括被拒绝的社团
 	// 没有找到时返回空字符串
 	string findAnyClubByLeader(const string& userId)const;
-	//返回全部社团数量，包括待审核、已通过和被拒绝的社团
+	//返回未解散的社团数量，包括待审核、已通过和被拒绝的社团，不计已解散归档
 	int getClubCount()const;
 	//返回所以审核通过社团的资料副本
 	//没有符合条件的社团时返回空列表

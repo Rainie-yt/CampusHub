@@ -17,7 +17,7 @@ ClubManager::ClubManager(string id,string name,string pwd,string maj,string cid)
 }
 /*
 函数名：showMenu
-功能：负责人主菜单。前 5 项与学生菜单相同，直接调用从 Student 继承来的函数，第 6 项是社团管理
+功能：负责人主菜单。前 4 项与学生菜单相同，直接调用从 Student 继承来的函数，第 5 项是社团管理
 实现说明：
     users.txt 中没有保存负责人管理的社团编号，所以每次进入菜单时，
     调用社团模块的 findClubByLeader() 按负责人Id查出自己负责的已通过社团。
@@ -35,17 +35,16 @@ void ClubManager::showMenu(){
         cout<<"========社团负责人菜单========"<<endl;
         cout<<"1.个人信息管理"<<endl;
         cout<<"2.社团中心"<<endl;
-        cout<<"3.活动报名"<<endl;
-        cout<<"4.我的报名活动"<<endl;
-        cout<<"5.兴趣推荐"<<endl;
-        cout<<"6.社团管理"<<endl;
+        cout<<"3.活动中心"<<endl;
+        cout<<"4.兴趣推荐"<<endl;
+        cout<<"5.社团管理"<<endl;
         cout<<"0.退出登录"<<endl;
         cout<<endl;
         cout<<"请选择：";
         int choice=readIntChoice();
         switch(choice)
         {
-            //1～5 是从 Student 继承来的功能，不需要重新编写
+            //1～4 是从 Student 继承来的功能，不需要重新编写
             case 1:{
                 showInfoMenu();
                 break;
@@ -55,18 +54,14 @@ void ClubManager::showMenu(){
                 break;
             }
             case 3:{
-                joinActivityMenu();
+                activityMenu();
                 break;
             }
             case 4:{
-                showMyActivityMenu();
+                showRecommendations();
                 break;
             }
             case 5:{
-                recommendClubs();
-                break;
-            }
-            case 6:{
                 clubManageMenu();
                 break;
             }
@@ -112,10 +107,10 @@ void ClubManager::clubManageMenu(){
                 showClubInfo();
                 break;
             case 2:
-                modifyClubInfo();
+                modifyClubInfoMenu();
                 break;
             case 3:
-                manageMembers();
+                manageMembersMenu();
                 break;
             case 4:
                 activityManageMenu();
@@ -131,6 +126,7 @@ void ClubManager::clubManageMenu(){
 /*
 函数名：activityManageMenu
 功能：活动管理菜单，五个选项分别调用本类的五个活动管理函数
+说明：被驳回的活动可通过“修改活动”修改，修改成功后自动重新提交审核
 */
 void ClubManager::activityManageMenu()
 {
@@ -143,7 +139,6 @@ void ClubManager::activityManageMenu()
         cout<<"3.删除活动"<<endl;
         cout<<"4.查看报名情况"<<endl;
         cout<<"5.管理报名成员"<<endl;
-        cout<<"6.重新提交被驳回活动"<<endl;
         cout<<"0.返回上一级菜单"<<endl;
         cout<<endl;
         cout<<"请选择：";
@@ -151,29 +146,21 @@ void ClubManager::activityManageMenu()
         switch(choice)
         {
             case 1:
-                publishActivity();
+                publishActivityMenu();
                 break;
             case 2:{
-                modifyActivity();
+                modifyActivityMenu();
                 break;
             }
             case 3:{
-                deleteActivity();
+                deleteActivityMenu();
                 break;
             }
             case 4:
-                showActivityRegistration();
+                showActivityRegistrationMenu();
                 break;
             case 5:{
-                manageRegistration();
-                break;
-            }
-            case 6:{
-                string id=selectMyActivity("请输入要重新提交的活动编号：");
-                if(!id.empty()){
-                    if(activityManager->resubmitActivity(id,clubId)) cout<<"已重新提交，请等待管理员审核！"<<endl;
-                    else cout<<"重新提交失败：只支持本社团未结束且被驳回的活动，或文件保存失败。"<<endl;
-                }
+                manageRegistrationMenu();
                 break;
             }
             case 0:
@@ -195,12 +182,12 @@ void ClubManager::showClubInfo(){
     printClubDetail(clubId);
 }
 /*
-函数名：modifyClubInfo
+函数名：modifyClubInfoMenu
 功能：修改社团名称和简介
 实现说明：用 readLine() 读入整行，名称和简介中间可以有空格；
           社团模块会检查操作者是否为该社团负责人、名称是否为空，成功后保存文件
 */
-void ClubManager::modifyClubInfo(){
+void ClubManager::modifyClubInfoMenu(){
     cout<<"请输入新的社团名称：";
     string newName=readLine();
     cout<<"请输入新的社团简介：";
@@ -216,10 +203,10 @@ void ClubManager::modifyClubInfo(){
     }
 }
 /*
-函数名：manageMembers
+函数名：manageMembersMenu
 功能：成员管理菜单：1 进入成员列表，2 进入加入申请列表
 */
-void ClubManager::manageMembers(){
+void ClubManager::manageMembersMenu(){
     while(true){
         cout<<endl;
         cout<<"========成员管理========"<<endl;
@@ -368,7 +355,7 @@ void ClubManager::applicationMenu(){
 功能：对选中的申请人操作：1 查看完整信息，2 通过申请，3 拒绝申请
 参数：applicantId 申请人的用户Id
 实现说明：通过后申请人成为社团成员，拒绝后从申请名单中删除；
-          两种操作成功后都保存文件，并返回申请列表
+          两种操作成功后都保存文件，并返回申请列表；失败时显示业务检查或保存失败的原因
 */
 void ClubManager::applicantActionMenu(const string& applicantId){
     while(true){
@@ -389,26 +376,40 @@ void ClubManager::applicantActionMenu(const string& applicantId){
                     userManager->showUserInfoById(applicantId);
                 }
                 break;
-            case 2:
+            case 2:{
+                string reason;
                 if(persistChange([&](){
-                    return clubService->approveApplication(userId,clubId,applicantId)
-                        && saveClubData();
+                    if(!clubService->approveApplication(userId,clubId,applicantId,&reason)) return false;
+                    if(!saveClubData()){
+                        reason="社团数据保存失败。";
+                        return false;
+                    }
+                    return true;
                 })){
                     cout<<"已通过，"<<applicantId<<" 成为社团成员！"<<endl;
                     return;
                 }
-                cout<<"操作失败：该用户不在申请名单中。"<<endl;
+                if(reason.empty()) reason="文件保存失败，请检查文件是否只读、被占用或磁盘空间不足。";
+                cout<<"审核失败："<<reason<<endl;
                 break;
-            case 3:
+            }
+            case 3:{
+                string reason;
                 if(persistChange([&](){
-                    return clubService->rejectApplication(userId,clubId,applicantId)
-                        && saveClubData();
+                    if(!clubService->rejectApplication(userId,clubId,applicantId,&reason)) return false;
+                    if(!saveClubData()){
+                        reason="社团数据保存失败。";
+                        return false;
+                    }
+                    return true;
                 })){
                     cout<<"已拒绝该申请！"<<endl;
                     return;
                 }
-                cout<<"操作失败：该用户不在申请名单中。"<<endl;
+                if(reason.empty()) reason="文件保存失败，请检查文件是否只读、被占用或磁盘空间不足。";
+                cout<<"审核失败："<<reason<<endl;
                 break;
+            }
             case 0:
                 return;
             default:
@@ -431,19 +432,20 @@ string ClubManager::nameOf(const string& id){
 /*
 函数名：selectMyActivity
 功能：列出本社团的活动，输入活动编号并检查该活动是否属于本社团
-参数：prompt 输入提示语（如"请输入要修改的活动编号："）
-返回值：合法的活动编号；没有活动、编号不存在或不属于本社团时返回空字符串
+参数：prompt 输入提示语（如"请输入要修改的活动编号："）；approvedOnly 是否只允许选择已通过的活动
+返回值：符合筛选条件的活动编号；没有可选活动、编号不存在或不符合要求时返回空字符串
 实现说明：修改、删除、查看报名、管理报名四个功能开头都要做这一步，所以提取成公共函数；
-          通过比较活动的所属社团编号和自己的 clubId，保证负责人只能操作本社团的活动
+          比较所属社团编号，保证只能操作本社团活动；查看、管理报名时还要检查审核状态，
+          防止手动输入列表以外的编号绕过筛选
 */
-string ClubManager::selectMyActivity(const string& prompt){
+string ClubManager::selectMyActivity(const string& prompt, bool approvedOnly){
     if(activityManager==nullptr){
         cout<<"活动数据未加载！"<<endl;
         return "";
     }
     cout<<endl;
-    activityManager->showActivitiesByClub(clubId);
-    if(activityManager->getActivitiesByClub(clubId).empty()){
+    activityManager->showActivitiesByClub(clubId,approvedOnly);
+    if(activityManager->getActivitiesByClub(clubId,approvedOnly).empty()){
         return "";
     }
     cout<<endl;
@@ -455,10 +457,14 @@ string ClubManager::selectMyActivity(const string& prompt){
         cout<<"未找到该活动，或该活动不属于本社团！"<<endl;
         return "";
     }
+    if(approvedOnly&&!act->isApproved()){
+        cout<<"该活动尚未通过审核，不能在此查看或管理报名。"<<endl;
+        return "";
+    }
     return activityId;
 }
 /*
-函数名：publishActivity
+函数名：publishActivityMenu
 功能：发布本社团的新活动，发布后为待审核状态，管理员审核通过后学生才能看到
 实现说明：
     活动模块的 publishActivity() 用 getline 逐行读入活动资料，
@@ -466,7 +472,7 @@ string ClubManager::selectMyActivity(const string& prompt){
     不先清掉的话，活动模块第一次 getline 会直接读到空行，导致发布被取消。
     所以调用前先用 skipLine() 丢掉这个换行。
 */
-void ClubManager::publishActivity(){
+void ClubManager::publishActivityMenu(){
     if(activityManager==nullptr){
         cout<<"活动数据未加载！"<<endl;
         return;
@@ -476,13 +482,13 @@ void ClubManager::publishActivity(){
     activityManager->publishActivity(clubId);
 }
 /*
-函数名：modifyActivity
+函数名：modifyActivityMenu
 功能：修改本社团的活动（名称、标签、地点、人数上限等，直接回车表示不修改）
 实现说明：先用 selectMyActivity() 选出本社团的活动；
           cin>> 读入编号后同样会留下换行，调用活动模块前先 skipLine()；
-          已经有人报名的活动不能修改时间，由活动模块判断
+          已有报名或候补的活动不能修改任何资料，由活动模块判断
 */
-void ClubManager::modifyActivity(){
+void ClubManager::modifyActivityMenu(){
     string activityId=selectMyActivity("请输入要修改的活动编号：");
     if(activityId.empty()){
         return;
@@ -493,13 +499,18 @@ void ClubManager::modifyActivity(){
     activityManager->modifyActivity(activityId,clubId);
 }
 /*
-函数名：deleteActivity
-功能：删除本社团的活动，报名记录一起删除
-实现说明：删除前要确认；调用活动模块时传入本社团编号，活动模块会再次核对权限
+函数名：deleteActivityMenu
+功能：删除本社团未结束的活动，报名记录一起删除
+实现说明：已结束活动保留为历史；删除前要确认，活动模块会再次核对权限和结束时间
 */
-void ClubManager::deleteActivity(){
+void ClubManager::deleteActivityMenu(){
     string activityId=selectMyActivity("请输入要删除的活动编号：");
     if(activityId.empty()){
+        return;
+    }
+    Activity* act=activityManager->findActivity(activityId);
+    if(act->hasEnded(activityManager->now())){
+        cout<<"已结束活动保留为历史，不能删除。"<<endl;
         return;
     }
     cout<<"确认删除该活动吗？报名记录会一起删除。1.确认  0.取消"<<endl;
@@ -512,16 +523,16 @@ void ClubManager::deleteActivity(){
         cout<<"活动已删除！"<<endl;
     }
     else{
-        cout<<"删除失败：该活动不存在、不属于本社团或保存失败。"<<endl;
+        cout<<"删除失败：该活动不存在、不属于本社团、已结束或保存失败。"<<endl;
     }
 }
 /*
-函数名：showActivityRegistration
-功能：查看本社团某个活动的报名名单和候补名单
+函数名：showActivityRegistrationMenu
+功能：查看本社团已通过审核活动的报名名单和候补名单
 说明：showRegistration() 只负责显示、不读输入，所以不需要 skipLine()
 */
-void ClubManager::showActivityRegistration(){
-    string activityId=selectMyActivity("请输入要查看报名情况的活动编号：");
+void ClubManager::showActivityRegistrationMenu(){
+    string activityId=selectMyActivity("请输入要查看报名情况的活动编号：",true);
     if(activityId.empty()){
         return;
     }
@@ -529,13 +540,13 @@ void ClubManager::showActivityRegistration(){
     activityManager->showRegistration(activityId);
 }
 /*
-函数名：manageRegistration
-功能：管理本社团某个活动的报名成员，可以把某个用户移出名单
+函数名：manageRegistrationMenu
+功能：管理本社团已通过审核活动的报名成员，可以把某个用户移出名单
 实现说明：活动模块的 manageRegistration() 用 getline 读入要移除的用户Id（直接回车退出），
           调用前先 skipLine() 清掉换行；移除正式名额后，候补第一位会自动递补
 */
-void ClubManager::manageRegistration(){
-    string activityId=selectMyActivity("请输入要管理报名的活动编号：");
+void ClubManager::manageRegistrationMenu(){
+    string activityId=selectMyActivity("请输入要管理报名的活动编号：",true);
     if(activityId.empty()){
         return;
     }
