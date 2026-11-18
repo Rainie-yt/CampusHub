@@ -25,6 +25,15 @@ enum class JoinResult {
 
 std::string joinResultText(JoinResult r);   // 结果的中文说明
 
+/*
+类名：ActivityManager
+功能：保存全部活动，向学生、负责人、管理员和社团模块提供统一接口
+类之间的关系：
+    1. 用 vector<unique_ptr<Activity>> 保存三种活动子类，调用基类接口时体现多态；
+    2. Activity 把本类声明为友元，管理器可分配活动编号，并在回滚时直接恢复名单；
+    3. 用户角色共用同一个管理器，不分别保存活动副本。
+主要数据：活动列表、下一编号、两份数据文件路径、自动保存开关和测试时钟。
+*/
 class ActivityManager {
 public:
     explicit ActivityManager(const std::string& actFile = "data/activities.txt",
@@ -61,6 +70,9 @@ public:
     // reason 接收失败原因，成功时清空；不需要原因时可省略，传入时写 &reason。
     bool auditActivity(const std::string& activityId, bool approve = true,
                        std::string* reason = nullptr);
+
+    // 本社团被拒绝且未结束的活动可重新提交；保存失败恢复原状态。
+    bool resubmitActivity(const std::string& activityId, const std::string& clubId);
 
     // ---------- 查询 ----------
     Activity* findActivity(const std::string& activityId);
@@ -124,13 +136,15 @@ public:
         int maxp, const std::string& status, const std::string& extra);
 
 private:
-    std::vector<std::unique_ptr<Activity> > activities;
-    int nextId;
-    std::string activityFile;
-    std::string regFile;
-    bool autoSave;
-    std::string fixedNow;
+    std::vector<std::unique_ptr<Activity> > activities;  // 管理器拥有活动对象
+    int nextId;                         // 下一次分配的活动编号
+    std::string activityFile;           // 活动资料文件路径
+    std::string regFile;                // 正式报名、候补文件路径
+    bool autoSave;                      // 是否在业务操作后自动保存
+    std::string fixedNow;               // 测试用固定时间，空串表示系统时间
 
     std::string generateId();
+    // 返回保存结果，让发布、修改、报名等操作能够在失败时恢复旧状态。
     bool autoSaveIfNeeded() const;
+    bool persist() const;    // 重新提交审核时使用，未开启自动保存视为成功
 };

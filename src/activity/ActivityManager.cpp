@@ -23,6 +23,9 @@ using std::vector;
 namespace {
 
 // 按分隔符切分，保留空字段（"a||b" -> {"a","","b"}）
+// 参数：s 原字符串；delim 分隔符；返回：切分后的各段。
+// 说明：必须保留空字段，因为数据文件里 "a||b" 的中间空字段（例如没有奖项）也占一个位置，
+//       如果丢掉空字段，后面的字段位置就全错了。
 vector<string> splitKeep(const string& s, char delim) {
     vector<string> r;
     string cur;
@@ -38,6 +41,7 @@ vector<string> splitKeep(const string& s, char delim) {
     return r;
 }
 
+// 去掉首尾空白。参数：s 原字符串；返回：处理后的新字符串。
 string trim(const string& s) {
     size_t b = 0, e = s.size();
     while (b < e && std::isspace(static_cast<unsigned char>(s[b]))) ++b;
@@ -45,6 +49,8 @@ string trim(const string& s) {
     return s.substr(b, e - b);
 }
 
+// 把 s 中所有的 from 替换成 to（直接修改 s）。
+// 说明：每替换一次，下一次查找的起点跳到替换内容之后（pos += to.size()），防止 to 里又包含 from 造成死循环。
 void replaceAll(string& s, const string& from, const string& to) {
     size_t pos = 0;
     while ((pos = s.find(from, pos)) != string::npos) {
@@ -54,6 +60,8 @@ void replaceAll(string& s, const string& from, const string& to) {
 }
 
 // 解析标签输入：支持英文逗号、中文逗号、顿号
+// 参数：input 用户输入的一行标签；返回：去空白、去重后的标签列表。
+// 步骤：先把中文逗号、顿号统一换成英文逗号，再按逗号切分，逐项去首尾空白，非空且不重复才保留。
 vector<string> parseTags(const string& input) {
     string t = input;
     replaceAll(t, "，", ",");
@@ -67,6 +75,9 @@ vector<string> parseTags(const string& input) {
     return out;
 }
 
+// 把字符串解析成整数。参数：s 输入；out 解析结果（输出）；返回：整个字符串都是合法整数才返回 true。
+// 说明：stoi 遇到 "12abc" 只会解析前面的 12，所以用 pos 检查是否消耗了全部字符；
+//       遇到完全不是数字或数值过大时 stoi 会抛异常，用 try-catch 接住并返回 false。
 bool parseInt(const string& s, int& out) {
     try {
         size_t pos = 0;
@@ -79,6 +90,7 @@ bool parseInt(const string& s, int& out) {
     }
 }
 
+// 显示提示语并读取一整行输入（可含空格）。参数：prompt 提示语；返回：去首尾空白后的输入，输入流结束时返回空串。
 string readLine(const string& prompt) {
     cout << prompt;
     string line;
@@ -95,6 +107,7 @@ string askTime(const string& prompt) {
     }
 }
 
+// 把 0~1 的小数格式化成百分数字符串，保留 1 位小数，例如 0.667 -> "66.7%"。
 string percent(double score) {
     std::ostringstream oss;
     oss << std::fixed << std::setprecision(1) << score * 100 << "%";
@@ -132,6 +145,8 @@ void printBrief(const Activity& a, int nameW, const string& suffix = "", bool fu
 }
 
 // 空位出现后，按候补顺序依次递补，返回被递补的 userId
+// 参数：a 要处理的活动；返回：本次被递补的用户编号列表（按递补先后）。
+// 步骤：只要还有空位并且候补名单非空，就取候补队首，把他加入正式名单。循环条件保证不会超员。
 vector<string> promoteWaiting(Activity& a) {
     vector<string> promoted;
     while (!a.isFull() && !a.getWaitList().empty()) {
@@ -143,6 +158,7 @@ vector<string> promoteWaiting(Activity& a) {
 
 }  // namespace
 
+// 把报名结果枚举转成给用户看的提示文字。参数：r 报名结果；返回：对应的中文提示。
 string joinResultText(JoinResult r) {
     switch (r) {
         case JoinResult::SUCCESS: return "报名成功！";
@@ -163,6 +179,9 @@ string joinResultText(JoinResult r) {
 ActivityManager::ActivityManager(const string& actFile, const string& regFileName)
     : nextId(3001), activityFile(actFile), regFile(regFileName), autoSave(true) {}
 
+// 返回当前时间，格式 "YYYY-MM-DD HH:MM"，与活动时间的格式一致，可直接比较。
+// 说明：fixedNow 不为空时返回它，用于单元测试"固定当前时间"，避免测试结果随真实时间变化。
+//       localtime_s 与 localtime_r 是 Windows 与 Linux 下各自的线程安全版本，用条件编译区分。
 string ActivityManager::now() const {
     if (!fixedNow.empty()) return fixedNow;
     std::time_t t = std::time(nullptr);
@@ -177,14 +196,26 @@ string ActivityManager::now() const {
     return buf;
 }
 
+// 生成新的活动编号：返回 nextId 并加 1。编号是纯数字字符串，从 3001 起。
 string ActivityManager::generateId() { return std::to_string(nextId++); }
 
+/*
+函数名：autoSaveIfNeeded
+功能：开启自动保存时写入活动和报名文件，并把保存结果交给调用者
+返回值：保存成功或未开启自动保存时返回 true，保存失败返回 false。
+说明：调用者只有在保存成功后才能提示成功；返回 false 时要恢复修改前的状态。
+*/
 bool ActivityManager::autoSaveIfNeeded() const {
     if(!autoSave || save()) return true;
     cerr<<"活动数据保存失败，本次修改未保存。\n";
     return false;
 }
 
+// 活动工厂：根据类型名创建对应的子类对象。
+// 参数：type 为 Lecture / Competition / Performance；extra 为该类型的特有字段（主讲人 / 奖项 / 节目类型）；
+//       其余参数是各活动共有的字段。
+// 返回：基类智能指针；类型无法识别返回 nullptr。
+// 说明：返回 unique_ptr<Activity>，调用方用基类接口使用对象，新增活动类型时只需要改这一个函数（多态）。
 std::unique_ptr<Activity> ActivityManager::makeActivity(
     const string& type, const string& aid, const string& cid, const string& name,
     const vector<string>& tags, const string& st, const string& et, const string& loc,
@@ -269,6 +300,13 @@ bool ActivityManager::load() {
     return true;
 }
 
+/*
+函数名：save
+功能：把活动资料、正式报名和候补名单一起保存
+返回值：两份文件都写入成功返回 true，否则返回 false。
+实现步骤：先在内存中整理两份完整文本，再交给 FileStore 成组写入。
+说明：不能先清空原文件再逐条写，写入中途失败时需要保留原数据。
+*/
 bool ActivityManager::save() const {
     std::ostringstream fout,rout;
     for(const auto& entry:activities){
@@ -516,6 +554,34 @@ bool ActivityManager::auditActivity(const string& activityId, bool approve, stri
     return true;
 }
 
+/*
+函数名：persist
+功能：按自动保存开关决定是否写文件，返回保存结果
+说明：重新提交审核时先记住旧状态，保存失败后用返回值判断是否需要恢复。
+*/
+bool ActivityManager::persist() const {
+    return !autoSave || save();
+}
+
+/*
+函数名：resubmitActivity
+功能：把本社团被拒绝、尚未结束的活动重新提交审核
+参数：activityId 活动编号；clubId 操作者负责的社团编号
+返回值：重新提交并保存成功返回 true，不满足条件或保存失败返回 false。
+实现步骤：检查活动、社团和状态，改为 pending 后保存；保存失败恢复 rejected。
+*/
+bool ActivityManager::resubmitActivity(const string& activityId, const string& clubId) {
+    Activity* a = findActivity(activityId);
+    if (!a || a->getClubId() != clubId) return false;
+    if (a->getStatus() != "rejected" || a->hasEnded(now())) return false;
+    a->setStatus("pending");
+    if (!persist()) {
+        a->setStatus("rejected");
+        return false;
+    }
+    return true;
+}
+
 // ======================= 查询 =======================
 
 Activity* ActivityManager::findActivity(const string& activityId) {
@@ -530,12 +596,15 @@ const Activity* ActivityManager::findActivity(const string& activityId) const {
     return nullptr;
 }
 
+// 以下四个 get 函数都返回只读指针列表，不会让外部模块（用户模块、社团模块）修改活动。
+// 返回全部活动。
 vector<const Activity*> ActivityManager::getAllActivities() const {
     vector<const Activity*> r;
     for (size_t i = 0; i < activities.size(); ++i) r.push_back(activities[i].get());
     return r;
 }
 
+// 返回已通过审核的活动（包含已结束的，管理员统计用）。
 vector<const Activity*> ActivityManager::getApprovedActivities() const {
     vector<const Activity*> r;
     for (size_t i = 0; i < activities.size(); ++i)
@@ -543,6 +612,7 @@ vector<const Activity*> ActivityManager::getApprovedActivities() const {
     return r;
 }
 
+// 返回待审核的活动。
 vector<const Activity*> ActivityManager::getPendingActivities() const {
     vector<const Activity*> r;
     for (size_t i = 0; i < activities.size(); ++i)
@@ -607,6 +677,8 @@ void ActivityManager::showActivitiesByClub(const string& clubId, bool approvedOn
     }
 }
 
+// 显示活动详情。参数：activityId 活动编号；活动不存在时提示"未找到该活动！"。
+// 说明：这里调用的 showInfo() 是虚函数，运行时根据活动实际类型显示讲座 / 比赛 / 演出各自的信息（多态）。
 void ActivityManager::showActivityDetail(const string& activityId) const {
     const Activity* a = findActivity(activityId);
     if (!a) { cout << "未找到该活动！\n"; return; }
@@ -641,6 +713,9 @@ JoinResult ActivityManager::tryJoin(const string& userId, const string& activity
     return result;
 }
 
+// 报名接口（按接口总表约定返回 bool），先调用 tryJoin，再把结果输出给用户。
+// 返回：正式报名成功或进入候补都算成功，返回 true；其余情况返回 false。
+// 说明：遇到时间冲突时，额外输出冲突的是哪个活动、什么时间，方便用户判断。
 bool ActivityManager::joinActivity(const string& userId, const string& activityId) {
     JoinResult r = tryJoin(userId, activityId);
     cout << joinResultText(r);
@@ -745,6 +820,10 @@ const Activity* ActivityManager::findConflict(const string& userId, const Activi
     return nullptr;
 }
 
+// 计算兴趣与活动标签的匹配度（Jaccard 相似度）。
+// 参数：interests 用户兴趣；tags 活动标签；返回：0~1 之间的小数，越大越匹配。
+// 公式：匹配度 = |交集| / |并集|。例：兴趣 {科技,竞赛,志愿}，标签 {科技,竞赛}，交集 2，并集 3，匹配度 2/3。
+// 说明：先放进 set 自动去重；并集大小 = |A| + |B| - |交集|，不用真的构造并集；任一方为空返回 0，避免除以 0。
 double ActivityManager::matchScore(const vector<string>& interests, const vector<string>& tags) {
     std::set<string> a(interests.begin(), interests.end());
     std::set<string> b(tags.begin(), tags.end());
@@ -775,6 +854,8 @@ ActivityManager::recommend(const vector<string>& interests, const string& userId
     return result;
 }
 
+// 把推荐结果输出给用户，最多显示前 5 项，已满员的活动标注"可候补"。
+// 参数：interests 用户兴趣；userId 当前用户。
 void ActivityManager::recommendActivity(const vector<string>& interests, const string& userId) const {
     vector<std::pair<const Activity*, double> > r = recommend(interests, userId);
     cout << "========== 为你推荐 ==========\n";
@@ -791,6 +872,9 @@ void ActivityManager::recommendActivity(const vector<string>& interests, const s
     }
 }
 
+// 计算用户的活动积分。参数：userId 用户编号；返回：积分总和。
+// 规则：只统计"已通过审核、已结束、用户正式报名"的活动，每个活动的积分由 calcPoints() 决定。
+// 说明：calcPoints() 是虚函数，讲座 5 分、比赛 10 分、演出 8 分，这里无需判断活动类型（多态）。
 int ActivityManager::getUserPoints(const string& userId) const {
     int total = 0;
     string current = now();
@@ -810,6 +894,7 @@ int ActivityManager::getActivityCount(const string& clubId) const {
     return n;
 }
 
+// 统计某社团已通过审核的活动的报名总人次（每个活动的当前人数相加）。参数：clubId 社团编号。
 int ActivityManager::getParticipantCount(const string& clubId) const {
     int n = 0;
     for (size_t i = 0; i < activities.size(); ++i)
