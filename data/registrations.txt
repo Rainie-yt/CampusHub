@@ -1,5 +1,2 @@
-U005|3001|registered
-U004|3001|registered
-U006|3001|waitlist
+U001|3001|registered
 U005|3006|registered
-U004|3004|registered
