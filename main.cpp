@@ -68,7 +68,7 @@ int main(){
         || !clubService.loadMembers(MEMBER_FILE)
         || !clubService.loadApplications(APPLICATION_FILE)
         || !activityManager.load()){
-        cerr<<"数据加载失败，启动已取消；原数据文件未修改，请修复后重试。"<<endl;
+        cout<<"数据加载失败，启动已取消；原数据文件未修改，请修复后重试。"<<endl;
         return 1;
     }
     // 补充注销Id会写文件，所以要等前面的只读检查全部成功后再做。
