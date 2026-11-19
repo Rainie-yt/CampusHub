@@ -2,6 +2,11 @@
 #include  <string>
 #include<vector>
 using namespace std;
+/*
+普通社团，也是各分类社团的基类。
+保存社团编号、负责人、审核状态以及成员和待审名单。
+派生类重写 getType 和 getExtraInfo，保存文件时可取出对应分类资料。
+*/
 class Club
 {
 private:

@@ -1,5 +1,6 @@
 #include"club.h"
 #include<iostream>
+// 按传入资料建立社团，初始状态为 pending，等管理员审核。
 Club::Club(const string& id, const string& name, const string& intro, const string& leader)
 {
 	clubId = id;
@@ -8,26 +9,32 @@ Club::Club(const string& id, const string& name, const string& intro, const stri
 	leaderId = leader;
 	status = "pending";
 }
+// 返回当前显示名称；跨模块关联使用 getClubId()。
 string Club::getClubName()const
 {
 	return clubName;
 }
+// 返回社团编号，供成员关系和活动记录关联。
 string Club::getClubId()const
 {
 	return clubId;
 }
+// 返回当前社团简介。
 string Club::getDescription()const
 {
 	return description;
 }
+// 返回负责人的用户编号。
 string Club::getLeaderId()const
 {
 	return leaderId;
 }
+// 返回审核或归档状态，供菜单判断可执行的操作。
 string Club::getStatus()const
 {
 	return status;
 }
+// 检查新名称中有可见内容且不含换行，再替换原名称。无效时返回 false。
 bool Club::rename(const string& newName)
 {
 	bool hasValidChar = false;
@@ -50,6 +57,7 @@ bool Club::rename(const string& newName)
 	}
 	return hasValidChar;//有非空字符返回true,无则返回false
 }
+// 简介可留空；检查到换行就返回 false，避免破坏逐行保存的格式。
 bool Club::changeDescription(const string& newDescription)
 {
 	for (int i = 0; i < newDescription.length(); i++)
@@ -62,6 +70,7 @@ bool Club::changeDescription(const string& newDescription)
 	description = newDescription;
 	return true;
 }
+// 仅处理 pending 状态。passed 决定通过还是拒绝，返回值表示是否完成审核。
 bool Club::audit(bool passed)
 {
 	if (status != "pending")
@@ -78,6 +87,7 @@ bool Club::audit(bool passed)
 	}
 	return true;
 }
+// 按 userId 查成员名单，找到同一编号就返回 true。
 bool Club::hasMember(const string& userId)const
 {
 	for (int i = 0; i < memberIds.size(); i++)
@@ -89,6 +99,7 @@ bool Club::hasMember(const string& userId)const
 	}
 	return false;
 }
+// 已通过的社团才接收成员。检查编号和重复记录后追加到名单。
 bool Club::addMember(const string& userId)
 {
 	if (status != "approved" || userId.empty())
@@ -110,10 +121,12 @@ bool Club::addMember(const string& userId)
 	memberIds.push_back(userId);
 	return true;
 }
+// 返回成员名单长度，供社团详情与活跃度计算使用。
 int Club::getMemberCount()const
 {
 	return memberIds.size();
 }
+// 找到 userId 就移除对应成员，查无此人时返回 false。
 bool Club::removeMember(const string& userId)
 {
 	for (int i = 0; i < memberIds.size(); i++)
@@ -126,6 +139,7 @@ bool Club::removeMember(const string& userId)
 	}
 	return false;
 }
+// 打印人数与成员编号；空名单单独显示提示。
 void Club::showMembers()const
 {
 	cout << "成员人数：" << getMemberCount() << endl;
@@ -139,30 +153,37 @@ void Club::showMembers()const
 		cout << i + 1 << "." << memberIds[i] << endl;
 	}
 }
+// 返回成员编号的副本，调用者可以遍历而不会改动原名单。
 vector<string>Club::getMemberIds()const
 {
 	return memberIds;
 }
+// 重新装载成员记录前清空旧成员，保留社团基本资料。
 void Club::clearMembers()
 {
 	memberIds.clear();
 }
+// 普通社团返回默认类型；派生类重写此方法。
 string Club::getType()const
 {
 	return "普通社团";
 }
+// 创建独立副本，交给持有它的管理器释放。
 Club* Club::clone()const
 {
 	return new Club(*this);
 }
+// 基类使用虚析构，允许管理器通过 Club 指针释放派生对象。
 Club::~Club()
 {
 
 }
+// 普通社团没有分类专属字段，保存时该行留空。
 string Club::getExtraInfo()const
 {
 	return"";
 }
+// 查询 userId 是否已有一条待审入团申请。
 bool Club::hasApplicant(const string& userId)const
 {
 	for (int i = 0; i < applicantIds.size(); i++)
@@ -174,6 +195,7 @@ bool Club::hasApplicant(const string& userId)const
 	}
 	return false;
 }
+// 检查社团状态和编号，排除成员及重复申请后加入待审名单。
 bool Club::addApplicant(const string& userId)
 {
 	if (status != "approved" || userId.empty())
@@ -196,6 +218,7 @@ bool Club::addApplicant(const string& userId)
 		applicantIds.push_back(userId);
 		return true;
 }
+// 按用户编号删除待审申请，未找到时返回 false。
 bool Club::removeApplicant(const string& userId)
 {
 	for (int i = 0; i < applicantIds.size(); i++)
@@ -208,14 +231,17 @@ bool Club::removeApplicant(const string& userId)
 	}
 	return false;
 }
+// 返回申请人编号的副本，供负责人显示待审名单。
 vector<string>Club::getApplicantIds()const
 {
 	return applicantIds;
 }
+// 装载申请记录前清空旧申请，保留已加入的成员。
 void Club::clearApplicants()
 {
 	applicantIds.clear();
 }
+// 标记为 dissolved 并清空成员和申请，社团编号仍能关联历史记录。
 void Club::dissolve(){
     status="dissolved";
     memberIds.clear();

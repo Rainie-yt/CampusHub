@@ -1,5 +1,10 @@
 #pragma once
 #include"club.h"
+/*
+艺术社团，继承 Club。
+artCategory 保存艺术类别，负责人和成员资料由基类维护。
+getExtraInfo 提供分类资料，clone 用于复制完整的艺术社团。
+*/
 class ArtClub :public Club
 {
 private:

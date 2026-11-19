@@ -4,6 +4,11 @@
 
 class ActivityManager;
 
+/*
+讲座、比赛和演出的抽象基类。
+保存所属社团、起止时间、人数上限、正式名单和按先后排列的候补名单。
+派生类实现 calcPoints、showInfo 等虚函数，管理器可通过 Activity 指针统一调用。
+*/
 class Activity {
     friend class ActivityManager;   // 只有管理器可以分配活动编号
 	protected:

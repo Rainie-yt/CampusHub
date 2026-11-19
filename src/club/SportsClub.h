@@ -1,5 +1,10 @@
 #pragma once
 #include"club.h"
+/*
+体育社团，继承 Club。
+共有资料交给基类管理，sport 保存运动项目。
+getExtraInfo 提供运动项目，clone 保留体育社团的实际类型。
+*/
 class SportsClub :public Club
 {
 private:
