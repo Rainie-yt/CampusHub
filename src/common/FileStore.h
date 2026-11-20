@@ -92,6 +92,16 @@ inline bool commit(const Writes& writes) {
     return ok;
 }
 
+/*
+类名：Batch
+功能：把同一次业务操作涉及的多份文件先放在一起，等调用方确认后统一保存。
+数据成员：pending 保存文件路径和对应的完整待写内容。
+使用步骤：
+    1. 构造时将当前对象登记为活动批次。批次内的 FileStore::write 暂存内容，同一路径再次写入时保留最后一次的内容。
+    2. FileStore::read 优先读取批次中该路径的待写内容，使后续操作能读到本次修改。
+    3. 调用 finish() 才交给 commit 写入文件并返回结果。析构只解除批次登记，未调用 finish() 的改动会随对象销毁。
+说明：同一时间只登记一个活动批次；已有批次时由外层负责最终保存。
+*/
 class Batch {
     Writes pending;
 public:

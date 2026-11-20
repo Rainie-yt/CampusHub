@@ -771,6 +771,15 @@ bool UserManager::deleteUser(const string& userId){
     return FileStore::write(writes);
 }
 
+/*
+函数名：readRetiredIds
+功能：从注销名单读取禁止再次注册的用户编号。
+参数：ids 接收读取结果，合法编号会追加到这个列表。
+返回值：读取成功或名单文件尚不存在时返回 true；读取失败或编号格式有误时返回 false。
+实现步骤：
+    1. 通过 FileStore 读取名单，逐行去掉行尾回车并跳过空行。
+    2. 遇到含空白字符或竖线的编号就提示错误并停止。已追加的内容不会撤回，调用方应在返回 true 后使用结果。
+*/
 bool UserManager::readRetiredIds(vector<string>& ids){
     string text;
     bool exists=false;
@@ -793,6 +802,16 @@ bool UserManager::readRetiredIds(vector<string>& ids){
     return true;
 }
 
+/*
+函数名：reserveHistoricalIds
+功能：补登记历史记录中仍被引用、但用户文件里已不存在的编号，防止新账号复用。
+参数：clubs 提供已通过社团的负责人、成员和申请人；activities 提供各活动的正式报名及候补名单。
+返回值：无需补登记或新名单写入成功时返回 true；读取失败、待补编号非法或写入失败时返回 false。
+实现步骤：
+    1. 读取注销名单和用户文件，收集现有账号编号，包括被冻结的账号。
+    2. 从活动名单和已通过社团的记录中收集出现过的用户编号，用集合去重。
+    3. 略过空编号、现有账号和已登记编号，校验余下的编号后补入注销名单。仅在名单有变化时写回。
+*/
 bool UserManager::reserveHistoricalIds(const ClubService& clubs,const ActivityManager& activities){
     vector<string> retired;
     if(!readRetiredIds(retired)) return false;

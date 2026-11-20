@@ -90,7 +90,23 @@ bool Activity::inWaitList(const string& uid) const {
 // ---------------- 修改 ----------------
 
 void Activity::setName(const string& name) { activityName = clean(name); }
+/*
+函数名：setLocation
+功能：更新活动地点，避免地点文字破坏数据文件格式。
+参数：loc 新的地点文字。
+返回值：无。
+实现步骤：
+    调用 clean 将竖线、回车和换行替换为空格，再写入 location。
+*/
 void Activity::setLocation(const string& loc) { location = clean(loc); }
+/*
+函数名：setTags
+功能：用整理后的标签列表替换活动原有标签。
+参数：tagList 新的活动标签列表。
+返回值：无。
+实现步骤：
+    调用 normalizeTags 处理分隔符并去掉首尾空白，略过空标签和重复项，按首次出现的顺序保存。
+*/
 void Activity::setTags(const vector<string>& tagList) { tags = normalizeTags(tagList); }
 
 // 修改人数上限。

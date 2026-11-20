@@ -481,6 +481,14 @@ bool ActivityManager::modifyActivity(const string& activityId, const string& ope
     return changed;
 }
 
+/*
+函数名：deleteActivity
+功能：按活动编号删除活动，传入社团编号时只允许删除该社团的活动。
+参数：activityId 活动编号；operatorClubId 操作者的社团编号，留空时跳过归属检查。
+返回值：活动已删除返回 true；找不到活动、归属不符、活动已结束或保存失败时返回 false。
+实现步骤：
+    先查活动并核对所属社团，再交给 removeActivity 检查结束时间、删除记录并按需保存。
+*/
 bool ActivityManager::deleteActivity(const string& activityId, const string& operatorClubId) {
     const Activity* a = findActivity(activityId);
     if (!a || (!operatorClubId.empty() && a->getClubId() != operatorClubId)) return false;
@@ -584,12 +592,28 @@ bool ActivityManager::resubmitActivity(const string& activityId, const string& c
 
 // ======================= 查询 =======================
 
+/*
+函数名：findActivity
+功能：按编号查找活动，供需要修改活动的操作使用。
+参数：activityId 要查找的活动编号。
+返回值：找到时返回可修改的活动指针，找不到返回 nullptr。
+实现步骤：
+    逐个比较活动编号。返回的对象由管理器持有，调用方不用释放。
+*/
 Activity* ActivityManager::findActivity(const string& activityId) {
     for (size_t i = 0; i < activities.size(); ++i)
         if (activities[i]->getActivityId() == activityId) return activities[i].get();
     return nullptr;
 }
 
+/*
+函数名：findActivity
+功能：在只读的管理器中按编号查找活动。
+参数：activityId 要查找的活动编号。
+返回值：找到时返回只读的活动指针，找不到返回 nullptr。
+实现步骤：
+    顺序比较编号，命中后直接返回原对象的地址，不复制活动。
+*/
 const Activity* ActivityManager::findActivity(const string& activityId) const {
     for (size_t i = 0; i < activities.size(); ++i)
         if (activities[i]->getActivityId() == activityId) return activities[i].get();
@@ -620,6 +644,14 @@ vector<const Activity*> ActivityManager::getPendingActivities() const {
     return r;
 }
 
+/*
+函数名：getActivitiesByClub
+功能：列出指定社团的活动，供调用方按需筛选审核状态。
+参数：clubId 主办社团编号；approvedOnly 为 true 时只选已通过的活动。
+返回值：按原列表顺序返回只读活动指针，没有符合条件的活动则返回空列表。
+实现步骤：
+    先匹配社团编号，再按 approvedOnly 决定是否检查审核状态。已结束的活动也可出现在结果中。
+*/
 vector<const Activity*> ActivityManager::getActivitiesByClub(const string& clubId, bool approvedOnly) const {
     vector<const Activity*> r;
     for (size_t i = 0; i < activities.size(); ++i)
@@ -628,6 +660,14 @@ vector<const Activity*> ActivityManager::getActivitiesByClub(const string& clubI
     return r;
 }
 
+/*
+函数名：showApprovedActivities
+功能：在学生浏览菜单中显示已通过审核且尚未结束的活动。
+参数：无。
+返回值：无，直接输出活动列表。
+实现步骤：
+    取一次当前时间筛选活动，按筛选结果计算名称列宽，再逐行输出；结果为空时提示“暂无活动”。
+*/
 void ActivityManager::showApprovedActivities() const {
     // 学生浏览时只显示已通过且未结束的活动（已结束的活动不能报名，没必要列出来）。
     // 注意：getApprovedActivities() 仍然包含已结束的活动，管理员统计要用。
@@ -729,6 +769,16 @@ bool ActivityManager::joinActivity(const string& userId, const string& activityI
     return r == JoinResult::SUCCESS || r == JoinResult::WAITLISTED;
 }
 
+/*
+函数名：cancelActivity
+功能：撤销学生的正式报名或候补；正式名额释放后，按候补顺序递补。
+参数：userId 学生编号；activityId 活动编号；promotedUser 可选，用来带回第一位递补者的编号。
+返回值：取消成功返回 true。活动不存在、已结束、用户不在名单中或保存失败时返回 false。
+实现步骤：
+    1. 先清空传入的递补结果，核对活动和用户名单，再备份当前状态。
+    2. 正式报名者退出且活动已通过审核时，从候补队首依次补足空位；候补者退出只移除其候补记录。
+    3. 按需保存。保存失败则恢复原名单；成功后才填写递补者编号，没有递补时保持为空。
+*/
 bool ActivityManager::cancelActivity(const string& userId,const string& activityId,string* promotedUser){
     if(promotedUser) promotedUser->clear();
     Activity* a=findActivity(activityId);
@@ -747,6 +797,14 @@ bool ActivityManager::cancelActivity(const string& userId,const string& activity
     return true;
 }
 
+/*
+函数名：showMyActivities
+功能：列出学生的正式报名和候补记录，包括已结束的活动。
+参数：userId 当前学生的编号。
+返回值：无，直接输出该学生的活动和报名状态。
+实现步骤：
+    先收集两种名单中含有 userId 的活动并计算列宽。正式报名标出是否已结束，候补显示从 1 开始的位置；待审或被拒绝时附上审核提示。
+*/
 void ActivityManager::showMyActivities(const string& userId) const {
     cout << "========我的报名活动========\n";
     // 先找出报名或候补的活动，算好名称列宽度再输出
@@ -787,6 +845,16 @@ void ActivityManager::showRegistration(const string& activityId) const {
     }
 }
 
+/*
+函数名：manageRegistration
+功能：在报名管理菜单中查看名单，并按用户编号移除正式报名或候补记录。
+参数：activityId 活动编号；operatorClubId 非空时用来校验活动是否属于该社团。
+返回值：无，处理结果显示在菜单中。
+实现步骤：
+    1. 查找活动并检查归属，通过后显示当前名单。
+    2. 读入要移除的用户编号，直接回车即返回。调用 cancelActivity 处理移除、递补和保存。
+    3. 根据返回值提示结果，有人递补时显示其编号，再刷新名单。
+*/
 void ActivityManager::manageRegistration(const string& activityId, const string& operatorClubId) {
     Activity* a = findActivity(activityId);
     if (!a) { cout << "未找到该活动！\n"; return; }
@@ -835,6 +903,16 @@ double ActivityManager::matchScore(const vector<string>& interests, const vector
     return static_cast<double>(inter) / static_cast<double>(uni);
 }
 
+/*
+函数名：recommend
+功能：按学生兴趣为可选活动排序，返回活动和对应的标签匹配度。
+参数：interests 学生的兴趣标签；userId 用于排除自己已报名或候补的活动，留空时不做这项筛选。
+返回值：返回所有匹配度大于 0 的活动及分数，没有匹配项时返回空列表。
+实现步骤：
+    1. 筛选已通过且未结束的活动，并按 userId 排除已有记录。
+    2. 用 matchScore 计算去重后标签交集数与并集数的比值，只保留正分项。
+    3. 按分数从高到低排序，同分时先列开始时间较早的活动；两项都相同时保留原顺序。显示前五项由调用方处理。
+*/
 vector<std::pair<const Activity*, double> >
 ActivityManager::recommend(const vector<string>& interests, const string& userId) const {
     vector<std::pair<const Activity*, double> > result;
